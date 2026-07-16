@@ -1,0 +1,1190 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>게임 동향 시그널 데스크</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#F4F6F9;
+    --surface:#FFFFFF;
+    --surface-2:#F7F9FB;
+    --surface-3:#EEF2F6;
+    --border:#E1E7EE;
+    --border-strong:#C9D3DE;
+    --ink:#17232E;
+    --mute:#5E6E7E;
+    --mute-2:#93A1AF;
+    --accent:#2456E6;
+    --accent-soft:#EAF0FE;
+    --pos:#0B9E63;
+    --pos-soft:#E7F6EF;
+    --neg:#D6455D;
+    --neg-soft:#FBEDF0;
+    --amber:#B7791F;
+    --amber-soft:#FBF3E4;
+    --font-display:-apple-system,'Apple SD Gothic Neo','Pretendard','Malgun Gothic',sans-serif;
+    --font-body:-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;
+    --font-mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  body{ margin:0; background:var(--bg); color:var(--ink); font-family:var(--font-body); line-height:1.55; }
+  .app{ padding:20px; max-width:1180px; margin:0 auto; }
+
+  /* ---------- topbar ---------- */
+  .topbar{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:16px 20px; margin-bottom:18px;
+    background:var(--surface);
+    border:1px solid var(--border); border-radius:14px;
+    box-shadow:0 1px 3px rgba(23,35,46,0.05);
+  }
+  .brand{ display:flex; align-items:center; gap:12px; }
+  .live-dot{ width:10px; height:10px; border-radius:50%; background:var(--pos); animation:pulse 2s infinite; flex:none; }
+  @keyframes pulse{
+    0%{ box-shadow:0 0 0 0 rgba(11,158,99,0.4); }
+    70%{ box-shadow:0 0 0 8px rgba(11,158,99,0); }
+    100%{ box-shadow:0 0 0 0 rgba(11,158,99,0); }
+  }
+  .brand h1{ font-family:var(--font-display); font-size:19px; font-weight:800; margin:0; letter-spacing:-0.01em; }
+  .subtitle{ margin:2px 0 0; font-size:12.5px; color:var(--mute); }
+  .badge-live{
+    font-family:var(--font-mono); font-size:11px; letter-spacing:0.08em; color:var(--pos);
+    border:1px solid #BFE5D4; border-radius:20px; padding:5px 12px;
+    background:var(--pos-soft); flex:none;
+  }
+
+  /* ---------- layout ---------- */
+  .layout{ display:grid; grid-template-columns:270px 1fr; gap:18px; align-items:start; }
+  @media (max-width:760px){ .layout{ grid-template-columns:1fr; } }
+
+  .archive{
+    background:var(--surface); border:1px solid var(--border); border-radius:14px;
+    padding:16px; position:sticky; top:16px; box-shadow:0 1px 3px rgba(23,35,46,0.05);
+  }
+  .archive-head{
+    display:flex; align-items:center; justify-content:space-between; font-size:12px; letter-spacing:0.08em;
+    color:var(--mute-2); text-transform:uppercase; margin-bottom:10px; font-family:var(--font-mono);
+  }
+  .ghost-btn{
+    background:none; border:1px solid var(--border-strong); color:var(--ink); border-radius:8px;
+    padding:5px 9px; font-size:12px; cursor:pointer; font-family:var(--font-body);
+    transition:border-color .15s, color .15s;
+  }
+  .ghost-btn:hover{ border-color:var(--accent); color:var(--accent); }
+  .archive-list{ display:flex; flex-direction:column; gap:8px; max-height:600px; overflow-y:auto; }
+  .empty-note{ color:var(--mute-2); font-size:12.5px; margin:6px 2px; }
+  .archive-item{
+    display:flex; flex-direction:column; gap:3px; padding:10px 11px; background:var(--surface-2);
+    border:1px solid var(--border); border-radius:10px; cursor:pointer; text-align:left; width:100%;
+    transition:border-color .15s, background .15s;
+  }
+  .archive-item:hover{ border-color:var(--border-strong); background:var(--surface-3); }
+  .archive-item.active{ border-color:var(--accent); background:var(--accent-soft); }
+  .archive-item-top{ display:flex; align-items:center; gap:7px; }
+  .sentiment-dot{ width:7px; height:7px; border-radius:50%; flex:none; }
+  .sentiment-dot.긍정적{ background:var(--pos); }
+  .sentiment-dot.부정적{ background:var(--neg); }
+  .sentiment-dot.혼재{ background:var(--amber); }
+  .archive-item-name{ font-size:13px; font-weight:700; color:var(--ink); }
+  .archive-item-dev{ font-size:11px; color:var(--mute); }
+  .archive-item-date{ font-size:11px; color:var(--mute-2); font-family:var(--font-mono); }
+  .archive-item-stage{
+    display:inline-block; font-size:10px; font-family:var(--font-mono); padding:1px 6px;
+    border-radius:4px; background:var(--amber-soft); color:var(--amber); width:fit-content;
+  }
+
+  /* ---------- main / cards ---------- */
+  .main{ display:flex; flex-direction:column; gap:18px; }
+  .card{
+    background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:22px;
+    box-shadow:0 1px 3px rgba(23,35,46,0.05);
+  }
+  .form-card h2{
+    font-family:var(--font-display); font-size:14px; margin:0 0 6px; color:var(--mute);
+    text-transform:uppercase; letter-spacing:0.06em;
+  }
+  .form-hint{ font-size:12px; color:var(--mute-2); margin:0 0 14px; }
+  .field-row{ display:grid; grid-template-columns:1fr; gap:14px; margin-bottom:14px; }
+  .field-row.two-col{ grid-template-columns:1fr 1fr; }
+  @media (max-width:600px){ .field-row.two-col{ grid-template-columns:1fr; } }
+  .field-row label, .stage-row label.text-label{ display:flex; flex-direction:column; gap:6px; font-size:12.5px; color:var(--mute); }
+  .optional{ color:var(--mute-2); font-weight:400; }
+  .field-row input, .stage-row input[type=text]{
+    background:var(--surface); border:1px solid var(--border-strong); border-radius:9px; padding:10px 12px;
+    color:var(--ink); font-size:14px; font-family:var(--font-body); outline:none; transition:border-color .15s, box-shadow .15s;
+  }
+  .field-row input:focus, .stage-row input[type=text]:focus{ border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft); }
+
+  .stage-row{ margin-bottom:14px; }
+  .stage-title{ font-size:12.5px; color:var(--mute); margin-bottom:8px; }
+  .radio-group{ display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px; }
+  .radio-pill{
+    display:flex; align-items:center; gap:7px; padding:9px 14px; border:1px solid var(--border-strong);
+    border-radius:9px; cursor:pointer; font-size:13.5px; background:var(--surface); transition:all .15s;
+  }
+  .radio-pill:hover{ border-color:var(--accent); }
+  .radio-pill.selected{ border-color:var(--accent); background:var(--accent-soft); color:var(--accent); font-weight:700; }
+  .radio-pill input{ accent-color:var(--accent); margin:0; }
+  #cbtNameWrap{ max-width:420px; }
+  #cbtNameWrap input{ width:100%; }
+
+  .primary-btn{
+    background:var(--accent); color:#fff; border:none; border-radius:9px; padding:11px 20px;
+    font-size:14px; font-weight:700; cursor:pointer; font-family:var(--font-display);
+    letter-spacing:-0.01em; transition:filter .15s, transform .1s;
+  }
+  .primary-btn:hover{ filter:brightness(1.08); }
+  .primary-btn:active{ transform:scale(0.98); }
+  .primary-btn:disabled{ opacity:0.55; cursor:default; }
+
+  .status-text{ margin:12px 0 0; font-size:12.5px; color:var(--mute); font-family:var(--font-mono); min-height:16px; }
+  .status-text.err{ color:var(--neg); }
+
+  .progress-wrap{ margin-top:14px; }
+  .progress-track{ height:8px; border-radius:6px; background:var(--surface-3); overflow:hidden; }
+  .progress-fill{ height:100%; width:0%; background:linear-gradient(90deg, var(--accent), var(--pos)); transition:width .3s ease; }
+  .progress-label{ display:flex; justify-content:space-between; font-family:var(--font-mono); font-size:11.5px; color:var(--mute); margin-top:6px; }
+  .progress-label #progressPct{ color:var(--accent); font-weight:700; }
+
+  .hidden{ display:none !important; }
+
+  /* ---------- report ---------- */
+  .report-head{ display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:18px; flex-wrap:wrap; }
+  .report-title{ font-family:var(--font-display); font-size:22px; font-weight:800; margin:0; }
+  .report-title small{ display:block; font-size:12.5px; color:var(--mute); font-weight:500; margin-top:3px; }
+  .report-meta{ font-size:12px; color:var(--mute-2); font-family:var(--font-mono); margin-top:6px; }
+  .action-row{ display:flex; gap:8px; flex-wrap:wrap; }
+  .action-btn{
+    background:var(--surface); border:1px solid var(--border-strong); color:var(--ink); border-radius:8px;
+    padding:8px 13px; font-size:12.5px; cursor:pointer; font-family:var(--font-body); transition:all .15s;
+  }
+  .action-btn:hover{ border-color:var(--accent); color:var(--accent); }
+  .action-btn.saving{ background:var(--pos); border-color:var(--pos); color:#fff; }
+  .edit-banner{
+    background:var(--amber-soft); border:1px solid #E8D5AC; color:var(--amber);
+    border-radius:9px; padding:9px 13px; font-size:12.5px; margin-bottom:14px;
+  }
+
+  #reportBody[contenteditable="true"]{ outline:2px dashed var(--amber); outline-offset:8px; border-radius:6px; }
+
+  .section{ margin-bottom:24px; }
+  .section:last-child{ margin-bottom:0; }
+  .section-label{
+    font-family:var(--font-mono); font-size:11px; letter-spacing:0.1em; color:var(--accent);
+    text-transform:uppercase; margin:0 0 10px; display:flex; align-items:center; gap:8px;
+  }
+  .section-label::before{ content:''; width:16px; height:1px; background:var(--accent); }
+
+  .info-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+  @media (max-width:600px){ .info-grid{ grid-template-columns:1fr 1fr; } }
+  .info-cell{ background:var(--surface-2); border:1px solid var(--border); border-radius:10px; padding:11px 13px; }
+  .info-cell .k{ font-size:11px; color:var(--mute-2); font-family:var(--font-mono); }
+  .info-cell .v{ font-size:13.5px; margin-top:3px; font-weight:700; }
+
+  .overview-box{ background:var(--surface-2); border:1px solid var(--border); border-radius:10px; padding:14px 16px; font-size:13.5px; }
+
+  .feature-list{ display:flex; flex-direction:column; gap:10px; }
+  .feature-item{ background:var(--surface-2); border:1px solid var(--border); border-radius:10px; padding:13px 15px; }
+  .feature-item-head{ display:flex; gap:10px; align-items:baseline; margin-bottom:7px; }
+  .feature-num{ font-family:var(--font-mono); color:var(--accent); font-size:12px; flex:none; font-weight:700; }
+  .feature-item-head b{ font-size:14px; }
+  .feature-item ul{ margin:0; padding-left:18px; font-size:13px; color:var(--mute); }
+  .feature-item li{ margin-bottom:5px; }
+  .feature-item li:last-child{ margin-bottom:0; }
+
+  .quick-tags{ display:flex; flex-wrap:wrap; gap:7px; margin-bottom:14px; }
+  .quick-tag{ font-size:12px; padding:5px 10px; border-radius:20px; }
+  .quick-tag.pos{ background:var(--pos-soft); color:var(--pos); border:1px solid #BFE5D4; }
+  .quick-tag.neg{ background:var(--neg-soft); color:var(--neg); border:1px solid #F0C8D0; }
+
+  .overall-tag{
+    display:inline-block; font-size:12px; font-weight:700; padding:3px 10px; border-radius:20px;
+    margin-bottom:12px; font-family:var(--font-mono);
+  }
+  .overall-tag.긍정적{ background:var(--pos-soft); color:var(--pos); border:1px solid #BFE5D4; }
+  .overall-tag.부정적{ background:var(--neg-soft); color:var(--neg); border:1px solid #F0C8D0; }
+  .overall-tag.혼재{ background:var(--amber-soft); color:var(--amber); border:1px solid #E8D5AC; }
+
+  .detail-list{ display:flex; flex-direction:column; gap:9px; }
+  .detail-item{
+    display:flex; gap:10px; background:var(--surface-2); border:1px solid var(--border);
+    border-radius:10px; padding:12px 14px; position:relative; transition:box-shadow .15s;
+  }
+  .detail-item.positive{ border-left:3px solid var(--pos); }
+  .detail-item.negative{ border-left:3px solid var(--neg); }
+  .detail-item.mixed{ border-left:3px solid var(--amber); }
+  .detail-item.dragging{ opacity:0.45; box-shadow:0 4px 14px rgba(23,35,46,0.18); }
+  .detail-marker{ flex:none; font-size:13px; padding-top:1px; font-weight:700; }
+  .detail-marker.positive{ color:var(--pos); }
+  .detail-marker.negative{ color:var(--neg); }
+  .detail-marker.mixed{ color:var(--amber); }
+  .detail-body b{ display:block; font-size:13.5px; margin-bottom:3px; }
+  .detail-body span{ font-size:13px; color:var(--mute); }
+  .drag-handle{
+    flex:none; cursor:grab; color:var(--mute-2); font-size:15px; padding:0 3px;
+    user-select:none; align-self:center;
+  }
+  .drag-handle:active{ cursor:grabbing; }
+
+  .trend-box{ background:var(--surface-2); border:1px solid var(--border); border-radius:10px; padding:13px 14px; font-size:13.5px; }
+  .trend-box ul{ margin:8px 0 0; padding-left:18px; color:var(--mute); font-size:13px; }
+  .date-chip{
+    display:inline-block; font-family:var(--font-mono); font-size:11px; color:var(--mute);
+    background:var(--surface-3); border:1px solid var(--border); border-radius:6px; padding:2px 7px; margin-top:8px;
+  }
+
+  .metric-table, .cbt-table{ width:100%; border-collapse:collapse; font-size:13px; }
+  .metric-table td{ padding:9px 6px; border-bottom:1px solid var(--border); }
+  .metric-source{ margin-top:4px; font-size:11.5px; color:var(--mute-2); font-weight:400; }
+  .metric-table td:first-child{ color:var(--mute-2); font-family:var(--font-mono); font-size:12px; width:150px; }
+  .cbt-table th{
+    text-align:left; padding:8px 6px; font-size:11.5px; color:var(--mute-2);
+    font-family:var(--font-mono); border-bottom:2px solid var(--border-strong); font-weight:600;
+  }
+  .cbt-table td{ padding:9px 6px; border-bottom:1px solid var(--border); vertical-align:top; }
+  .cbt-sub{ font-size:12.5px; font-weight:700; color:var(--mute); margin:14px 0 6px; }
+  .cbt-sub:first-child{ margin-top:0; }
+  .metric-note{ margin-top:8px; font-size:12px; color:var(--amber); }
+
+  .sources{ display:flex; flex-direction:column; gap:5px; }
+  .sources a{ color:var(--mute); font-size:12px; text-decoration:none; border-bottom:1px dotted var(--mute-2); }
+  .sources a:hover{ color:var(--accent); border-color:var(--accent); }
+
+  .disclaimer{ margin-top:18px; padding-top:14px; border-top:1px dashed var(--border-strong); font-size:11.5px; color:var(--mute-2); }
+  .empty-state{ text-align:center; padding:40px 10px; color:var(--mute-2); font-size:13px; }
+
+  ::-webkit-scrollbar{ width:8px; }
+  ::-webkit-scrollbar-thumb{ background:var(--border-strong); border-radius:8px; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="topbar">
+    <div class="brand">
+      <span class="live-dot"></span>
+      <div>
+        <h1>게임 동향 시그널 데스크</h1>
+        <p class="subtitle">팀 공용 리서치 자동화 도구 · 생성된 보고서는 팀 전체와 공유됩니다</p>
+      </div>
+    </div>
+    <span class="badge-live">ON&nbsp;AIR</span>
+  </div>
+
+  <div class="layout">
+
+    <aside class="archive">
+      <div class="archive-head">
+        <span>ARCHIVE</span>
+        <button id="newReportBtn" class="ghost-btn">+ 새 보고서</button>
+      </div>
+      <div id="archiveList" class="archive-list">
+        <p class="empty-note">불러오는 중…</p>
+      </div>
+    </aside>
+
+    <main class="main">
+
+      <section id="formCard" class="card form-card">
+        <h2>보고서 생성</h2>
+        <p class="form-hint">💡 동명(同名) 게임 혼동을 막기 위해 개발사를 함께 입력하는 것을 권장합니다. 게임의 대표 특징 키워드(예: 몬스터 합체)를 함께 적으면 정확도가 더 올라갑니다.</p>
+
+        <div class="field-row">
+          <label>게임명
+            <input id="gameNameInput" type="text" placeholder="예) Aniimo" />
+          </label>
+        </div>
+        <div class="field-row two-col">
+          <label>개발사 <span class="optional">(권장)</span>
+            <input id="devInput" type="text" placeholder="예) Ember Entertainment" />
+          </label>
+          <label>해외 국가 <span class="optional">(선택)</span>
+            <input id="countryInput" type="text" placeholder="예) 일본, 미국" />
+          </label>
+        </div>
+        <div class="field-row">
+          <label>게임 특징 힌트 <span class="optional">(선택 · 동명/오인 방지용)</span>
+            <input id="hintInput" type="text" placeholder="예) 포켓몬풍 몬스터 수집, 몬스터와 캐릭터가 합체하는 트와인 시스템" />
+          </label>
+        </div>
+
+        <div class="stage-row">
+          <div class="stage-title">출시 상태</div>
+          <div class="radio-group">
+            <label class="radio-pill selected" id="pillReleased">
+              <input type="radio" name="stage" value="released" checked /> 출시
+            </label>
+            <label class="radio-pill" id="pillCbt">
+              <input type="radio" name="stage" value="cbt" /> 출시 전 (CBT/테스트)
+            </label>
+          </div>
+          <div id="cbtNameWrap" class="hidden">
+            <label class="text-label">이번 테스트 명칭
+              <input id="cbtNameInput" type="text" placeholder="예) 한국 1차 CBT" />
+            </label>
+          </div>
+        </div>
+
+        <button id="generateBtn" class="primary-btn">시그널 수집 시작</button>
+        <p id="statusText" class="status-text"></p>
+        <div id="progressWrap" class="progress-wrap hidden">
+          <div class="progress-track"><div id="progressFill" class="progress-fill"></div></div>
+          <div class="progress-label"><span id="progressPhase">대기 중</span><span id="progressPct">0%</span></div>
+        </div>
+      </section>
+
+      <section id="reportCard" class="card report-card">
+        <div class="empty-state">게임명을 입력하고 [시그널 수집 시작]을 누르면<br/>여기에 보고서가 표시됩니다.</div>
+      </section>
+
+    </main>
+  </div>
+</div>
+
+<script>
+(function(){
+
+  const gameNameInput = document.getElementById('gameNameInput');
+  const devInput = document.getElementById('devInput');
+  const countryInput = document.getElementById('countryInput');
+  const hintInput = document.getElementById('hintInput');
+  const cbtNameInput = document.getElementById('cbtNameInput');
+  const cbtNameWrap = document.getElementById('cbtNameWrap');
+  const pillReleased = document.getElementById('pillReleased');
+  const pillCbt = document.getElementById('pillCbt');
+  const generateBtn = document.getElementById('generateBtn');
+  const statusText = document.getElementById('statusText');
+  const reportCard = document.getElementById('reportCard');
+  const formCard = document.getElementById('formCard');
+  const archiveList = document.getElementById('archiveList');
+  const newReportBtn = document.getElementById('newReportBtn');
+  const progressWrap = document.getElementById('progressWrap');
+  const progressFill = document.getElementById('progressFill');
+  const progressPhase = document.getElementById('progressPhase');
+  const progressPct = document.getElementById('progressPct');
+
+  let currentActiveId = null;
+  let currentReport = null;
+  let isEditing = false;
+  let progressTimer = null;
+
+  // ---------- stage radio ----------
+  function getStage(){
+    return document.querySelector('input[name="stage"]:checked').value;
+  }
+  function updateStageUI(){
+    const stage = getStage();
+    pillReleased.classList.toggle('selected', stage === 'released');
+    pillCbt.classList.toggle('selected', stage === 'cbt');
+    cbtNameWrap.classList.toggle('hidden', stage !== 'cbt');
+  }
+  pillReleased.querySelector('input').addEventListener('change', updateStageUI);
+  pillCbt.querySelector('input').addEventListener('change', updateStageUI);
+
+  // ---------- helpers ----------
+  function slugify(str){
+    return (str || 'game').trim().replace(/[\s\/\\'"]+/g,'_').slice(0,40);
+  }
+  function todayStr(){
+    const d = new Date();
+    const p = n => String(n).padStart(2,'0');
+    return `${d.getFullYear()}/${p(d.getMonth()+1)}/${p(d.getDate())}`;
+  }
+  function escapeHtml(s){
+    if (s === undefined || s === null) return '';
+    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+  function setProgress(pct, phaseLabel){
+    progressFill.style.width = Math.max(0, Math.min(100, pct)) + '%';
+    progressPct.textContent = Math.round(Math.max(0, Math.min(100, pct))) + '%';
+    if (phaseLabel) progressPhase.textContent = phaseLabel;
+  }
+
+  let simulatedPct = 0;
+  let progressCeiling = 30;
+  function startProgressSim(){
+    simulatedPct = 4;
+    progressCeiling = 30;
+    setProgress(simulatedPct, '조사 준비 중');
+    progressTimer = setInterval(() => {
+      if (simulatedPct < progressCeiling){
+        simulatedPct += Math.max(0.15, (progressCeiling - simulatedPct) * 0.02);
+        setProgress(simulatedPct);
+      }
+    }, 400);
+  }
+  function bumpProgress(ceiling, label){
+    progressCeiling = ceiling;
+    if (label) progressPhase.textContent = label;
+  }
+  function stopProgressSim(finalLabel){
+    if (progressTimer){ clearInterval(progressTimer); progressTimer = null; }
+    setProgress(100, finalLabel || '완료');
+  }
+  function failProgressSim(){
+    if (progressTimer){ clearInterval(progressTimer); progressTimer = null; }
+  }
+
+  // ---------- sentiment ordering (긍정 → 부정 → 복합) ----------
+  const SENT_ORDER = { positive: 0, negative: 1, mixed: 2 };
+  const SENT_MARK = { positive: '▲', negative: '▼', mixed: '◆' };
+  function sortDetail(detail){
+    return [...(detail || [])].sort((a, b) =>
+      (SENT_ORDER[a.sentiment] ?? 3) - (SENT_ORDER[b.sentiment] ?? 3)
+    );
+  }
+
+  // ---------- storage ----------
+  async function loadArchive(){
+    try{
+      const res = await window.storage.get('reports-index', true);
+      return res ? JSON.parse(res.value) : [];
+    }catch(e){ return []; }
+  }
+  async function saveArchive(list){
+    try{ await window.storage.set('reports-index', JSON.stringify(list), true); }
+    catch(e){ console.error('archive save failed', e); }
+  }
+  async function saveReport(id, report){
+    try{ await window.storage.set('report:'+id, JSON.stringify(report), true); }
+    catch(e){ console.error('report save failed', e); }
+  }
+  async function getReport(id){
+    try{
+      const res = await window.storage.get('report:'+id, true);
+      return res ? JSON.parse(res.value) : null;
+    }catch(e){ return null; }
+  }
+
+  function renderArchiveList(list){
+    if (!list.length){
+      archiveList.innerHTML = '<p class="empty-note">아직 생성된 보고서가 없습니다.</p>';
+      return;
+    }
+    archiveList.innerHTML = '';
+    list.forEach(item => {
+      const btn = document.createElement('button');
+      btn.className = 'archive-item' + (item.id === currentActiveId ? ' active' : '');
+      btn.innerHTML = `
+        <div class="archive-item-top">
+          <span class="sentiment-dot ${escapeHtml(item.overall)}"></span>
+          <span class="archive-item-name">${escapeHtml(item.game)}</span>
+        </div>
+        ${item.stage ? `<span class="archive-item-stage">${escapeHtml(item.stage)}</span>` : ''}
+        <span class="archive-item-dev">${escapeHtml(item.dev || '')}</span>
+        <span class="archive-item-date">${escapeHtml(item.date)}</span>
+      `;
+      btn.addEventListener('click', () => openArchivedReport(item.id));
+      archiveList.appendChild(btn);
+    });
+  }
+
+  async function refreshArchiveList(){
+    renderArchiveList(await loadArchive());
+  }
+
+  async function openArchivedReport(id){
+    statusText.textContent = '';
+    statusText.className = 'status-text';
+    const report = await getReport(id);
+    if (!report){
+      statusText.textContent = '보고서를 불러오지 못했습니다.';
+      statusText.className = 'status-text err';
+      return;
+    }
+    currentActiveId = id;
+    currentReport = report;
+    isEditing = false;
+    renderReport(report);
+    formCard.classList.add('hidden');
+    refreshArchiveList();
+  }
+
+  newReportBtn.addEventListener('click', () => {
+    currentActiveId = null;
+    currentReport = null;
+    isEditing = false;
+    formCard.classList.remove('hidden');
+    reportCard.innerHTML = '<div class="empty-state">게임명을 입력하고 [시그널 수집 시작]을 누르면<br/>여기에 보고서가 표시됩니다.</div>';
+    refreshArchiveList();
+  });
+
+  // ---------- render report ----------
+  function buildReportBodyHtmlV2(report){
+    const info = report.info || {};
+    const sns = report.sns_trend || {};
+    const video = report.video_trend || {};
+    const cbt = report.cbt_info;
+    const sources = report.sources || [];
+    const features = (report.features || []).filter(f => f.category !== 'service_design' && f.category !== 'operations');
+    const overview = typeof report.overview === 'object' && report.overview !== null
+      ? report.overview
+      : { game_summary: report.overview || '', positive_summary: (sns.quick_pos || []).join(' · '), negative_summary: (sns.quick_neg || []).join(' · '), service_mood: sns.overall ? `전반 분위기: ${sns.overall}` : '' };
+    const metrics = report.metrics || {};
+    const metricItems = Array.isArray(metrics.items) ? metrics.items : [
+      { label: 'Steam 지표', value: metrics.steamdb || '확인 필요', source: metrics.date ? `확인일 ${metrics.date}` : '' },
+      { label: '판매·다운로드·사전예약', value: metrics.sales || '확인 필요', source: metrics.date ? `확인일 ${metrics.date}` : '' },
+      { label: '앱 마켓 순위', value: metrics.rank || '확인 필요', source: metrics.date ? `확인일 ${metrics.date}` : '' }
+    ];
+    const detail = sortDetail(sns.detail);
+
+    return `
+      <div class="section">
+        <p class="section-label">기본 정보</p>
+        <div class="info-grid">
+          <div class="info-cell"><div class="k">장르</div><div class="v">${escapeHtml(info.genre) || '추가 확인 필요'}</div></div>
+          <div class="info-cell"><div class="k">개발사</div><div class="v">${escapeHtml(info.dev) || '추가 확인 필요'}</div></div>
+          <div class="info-cell"><div class="k">유통사</div><div class="v">${escapeHtml(info.pub) || '추가 확인 필요'}</div></div>
+          <div class="info-cell"><div class="k">플랫폼</div><div class="v">${escapeHtml(info.platform) || '추가 확인 필요'}</div></div>
+          <div class="info-cell"><div class="k">엔진</div><div class="v">${escapeHtml(info.engine) || '추가 확인 필요'}</div></div>
+          <div class="info-cell"><div class="k">출시/테스트 일정</div><div class="v">${escapeHtml(info.release) || '추가 확인 필요'}</div></div>
+        </div>
+        ${info.note ? `<div class="metric-note">${escapeHtml(info.note)}</div>` : ''}
+      </div>
+
+      <div class="section">
+        <p class="section-label">게임 소개 및 출시 동향</p>
+        <div class="overview-box">
+          <p><b>게임 소개</b><br>${escapeHtml(overview.game_summary) || '추가 확인 필요'}</p>
+          <p><b>긍정 반응 요약</b><br>${escapeHtml(overview.positive_summary) || '추가 확인 필요'}</p>
+          <p><b>부정·우려 반응 요약</b><br>${escapeHtml(overview.negative_summary) || '추가 확인 필요'}</p>
+          <p><b>출시 동향 종합</b><br>${escapeHtml(overview.service_mood) || '추가 확인 필요'}</p>
+        </div>
+      </div>
+
+      <div class="section">
+        <p class="section-label">정량 지표</p>
+        <table class="metric-table">
+          ${metricItems.map(item => `<tr><td>${escapeHtml(item.label) || '지표'}</td><td><b>${escapeHtml(item.value) || '확인 필요'}</b>${item.source ? `<div class="metric-source">출처: ${escapeHtml(item.source)}</div>` : ''}</td></tr>`).join('')}
+        </table>
+        ${metrics.note ? `<div class="metric-note">${escapeHtml(metrics.note)}</div>` : ''}
+      </div>
+
+      ${cbt ? `
+      <div class="section">
+        <p class="section-label">CBT 정보</p>
+        <div class="cbt-sub">역대 테스트 이력</div>
+        <table class="cbt-table">
+          <tr><th>테스트명</th><th>기간</th><th>지역/플랫폼</th><th>비고</th></tr>
+          ${(cbt.history||[]).map(h=>`<tr><td><b>${escapeHtml(h.name)}</b></td><td>${escapeHtml(h.period)}</td><td>${escapeHtml(h.region)}</td><td>${escapeHtml(h.note)}</td></tr>`).join('')}
+        </table>
+        <div class="cbt-sub">공식 PV / 발표 일정</div>
+        <table class="cbt-table">
+          <tr><th>제목</th><th>공개일</th><th>비고</th></tr>
+          ${(cbt.pv_schedule||[]).map(p=>`<tr><td><b>${escapeHtml(p.title)}</b></td><td>${escapeHtml(p.date)}</td><td>${escapeHtml(p.note)}</td></tr>`).join('')}
+        </table>
+      </div>` : ''}
+
+      <div class="section">
+        <p class="section-label">게임 시스템 소개</p>
+        <div class="feature-list">
+          ${features.map((f,i) => `<div class="feature-item"><div class="feature-item-head"><span class="feature-num">${String(i+1).padStart(2,'0')}</span><b>${escapeHtml(f.title)}</b></div><ul>${(f.points||[]).map(p=>`<li>${escapeHtml(p)}</li>`).join('')}</ul></div>`).join('') || '<div class="empty-note">추가 확인 필요</div>'}
+        </div>
+      </div>
+
+      <div class="section">
+        <p class="section-label">영상 콘텐츠 반응 (유튜브 등)</p>
+        <div class="trend-box">${escapeHtml(video.summary) || '추가 확인 필요'}${(video.points || []).length ? `<ul>${video.points.map(p=>`<li>${escapeHtml(p)}</li>`).join('')}</ul>` : ''}<div><span class="date-chip">${escapeHtml(video.date) || '날짜 미상'}</span></div></div>
+      </div>
+
+      <div class="section">
+        <p class="section-label">SNS · 커뮤니티 반응</p>
+        <span class="overall-tag ${escapeHtml(sns.overall)}">${escapeHtml(sns.overall) || '추가 확인 필요'}</span>
+        <div class="quick-tags">${(sns.quick_pos||[]).map(p=>`<span class="quick-tag pos">▲ ${escapeHtml(p)}</span>`).join('')}${(sns.quick_neg||[]).map(n=>`<span class="quick-tag neg">▼ ${escapeHtml(n)}</span>`).join('')}</div>
+        <div class="detail-list" id="detailList">${detail.map(d => { const sent = SENT_ORDER.hasOwnProperty(d.sentiment) ? d.sentiment : 'positive'; return `<div class="detail-item ${sent}" data-sent="${sent}"><span class="detail-marker ${sent}">${SENT_MARK[sent]}</span><div class="detail-body"><b>${escapeHtml(d.label)}</b><span>${escapeHtml(d.desc)}</span></div></div>`; }).join('')}</div>
+        <div style="margin-top:10px;"><span class="date-chip">${escapeHtml(sns.date) || '날짜 미상'}</span></div>
+      </div>
+
+      ${sources.length ? `<div class="section"><p class="section-label">참고 자료</p><div class="sources">${sources.map(s => `<a href="${escapeHtml(s.u)}" target="_blank" rel="noopener">· ${escapeHtml(s.n)}</a>`).join('')}</div></div>` : ''}
+    `;
+  }
+
+  function buildReportBodyHtml(report){
+    const info = report.info || {};
+    const features = report.features || [];
+    const video = report.video_trend || {};
+    const sns = report.sns_trend || {};
+    const metrics = report.metrics || {};
+    const sources = report.sources || [];
+    const detail = sortDetail(sns.detail);
+    const cbt = report.cbt_info;
+
+    return `
+      <div class="section">
+        <p class="section-label">기본 정보</p>
+        <div class="info-grid">
+          <div class="info-cell"><div class="k">장르</div><div class="v">${escapeHtml(info.genre) || '추가 확인 필요'}</div></div>
+          <div class="info-cell"><div class="k">개발사</div><div class="v">${escapeHtml(info.dev) || '추가 확인 필요'}</div></div>
+          <div class="info-cell"><div class="k">유통사</div><div class="v">${escapeHtml(info.pub) || '추가 확인 필요'}</div></div>
+          <div class="info-cell"><div class="k">플랫폼</div><div class="v">${escapeHtml(info.platform) || '추가 확인 필요'}</div></div>
+          <div class="info-cell"><div class="k">엔진</div><div class="v">${escapeHtml(info.engine) || '추가 확인 필요'}</div></div>
+          <div class="info-cell"><div class="k">출시일/테스트 일정</div><div class="v">${escapeHtml(info.release) || '추가 확인 필요'}</div></div>
+        </div>
+        ${info.note ? `<div class="metric-note">${escapeHtml(info.note)}</div>` : ''}
+      </div>
+
+      ${report.overview ? `
+      <div class="section">
+        <p class="section-label">게임 소개</p>
+        <div class="overview-box">${escapeHtml(report.overview)}</div>
+      </div>` : ''}
+
+      ${cbt ? `
+      <div class="section">
+        <p class="section-label">CBT 정보</p>
+        <div class="cbt-sub">역대 테스트 이력</div>
+        <table class="cbt-table">
+          <tr><th>테스트명</th><th>기간</th><th>지역/플랫폼</th><th>비고</th></tr>
+          ${(cbt.history||[]).map(h=>`
+            <tr>
+              <td><b>${escapeHtml(h.name) || '추가 확인 필요'}</b></td>
+              <td>${escapeHtml(h.period) || '추가 확인 필요'}</td>
+              <td>${escapeHtml(h.region) || '-'}</td>
+              <td>${escapeHtml(h.note) || '-'}</td>
+            </tr>`).join('') || '<tr><td colspan="4">추가 확인 필요</td></tr>'}
+        </table>
+        <div class="cbt-sub">공식 PV / 발표 일정</div>
+        <table class="cbt-table">
+          <tr><th>제목</th><th>공개일</th><th>비고</th></tr>
+          ${(cbt.pv_schedule||[]).map(p=>`
+            <tr>
+              <td><b>${escapeHtml(p.title) || '추가 확인 필요'}</b></td>
+              <td>${escapeHtml(p.date) || '추가 확인 필요'}</td>
+              <td>${escapeHtml(p.note) || '-'}</td>
+            </tr>`).join('') || '<tr><td colspan="3">추가 확인 필요</td></tr>'}
+        </table>
+      </div>` : ''}
+
+      <div class="section">
+        <p class="section-label">게임 시스템 소개</p>
+        <div class="feature-list">
+          ${features.map((f,i) => `
+            <div class="feature-item">
+              <div class="feature-item-head"><span class="feature-num">${String(i+1).padStart(2,'0')}</span><b>${escapeHtml(f.title)}</b></div>
+              <ul>${(f.points||[]).map(p=>`<li>${escapeHtml(p)}</li>`).join('')}</ul>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+
+      <div class="section">
+        <p class="section-label">영상 콘텐츠 반응 (유튜브 등)</p>
+        <div class="trend-box">
+          ${escapeHtml(video.summary) || '추가 확인 필요'}
+          ${(video.points && video.points.length) ? `<ul>${video.points.map(p=>`<li>${escapeHtml(p)}</li>`).join('')}</ul>` : ''}
+          <div><span class="date-chip">${escapeHtml(video.date) || '날짜 미상'}</span></div>
+        </div>
+      </div>
+
+      <div class="section">
+        <p class="section-label">SNS · 커뮤니티 반응</p>
+        <span class="overall-tag ${escapeHtml(sns.overall)}">${escapeHtml(sns.overall) || '추가 확인 필요'}</span>
+        <div class="quick-tags">
+          ${(sns.quick_pos||[]).map(p=>`<span class="quick-tag pos">▲ ${escapeHtml(p)}</span>`).join('')}
+          ${(sns.quick_neg||[]).map(n=>`<span class="quick-tag neg">▼ ${escapeHtml(n)}</span>`).join('')}
+        </div>
+        <div class="detail-list" id="detailList">
+          ${detail.map(d => {
+            const sent = SENT_ORDER.hasOwnProperty(d.sentiment) ? d.sentiment : 'positive';
+            return `
+            <div class="detail-item ${sent}" data-sent="${sent}">
+              <span class="detail-marker ${sent}">${SENT_MARK[sent]}</span>
+              <div class="detail-body"><b>${escapeHtml(d.label)}</b><span>${escapeHtml(d.desc)}</span></div>
+            </div>`;
+          }).join('')}
+        </div>
+        <div style="margin-top:10px;"><span class="date-chip">${escapeHtml(sns.date) || '날짜 미상'}</span></div>
+      </div>
+
+      <div class="section">
+        <p class="section-label">정량 지표</p>
+        <table class="metric-table">
+          <tr><td>SteamDB</td><td>${escapeHtml(metrics.steamdb) || '추가 확인 필요'}</td></tr>
+          <tr><td>판매량 / 다운로드 / 사전예약</td><td>${escapeHtml(metrics.sales) || '추가 확인 필요'}</td></tr>
+          <tr><td>앱마켓 순위</td><td>${escapeHtml(metrics.rank) || '추가 확인 필요'}</td></tr>
+        </table>
+        <div class="date-chip">${escapeHtml(metrics.date) || '날짜 미상'}</div>
+        ${metrics.note ? `<div class="metric-note">${escapeHtml(metrics.note)}</div>` : ''}
+      </div>
+
+      ${sources.length ? `
+      <div class="section">
+        <p class="section-label">참고 자료</p>
+        <div class="sources">
+          ${sources.map(s => `<a href="${escapeHtml(s.u)}" target="_blank" rel="noopener">· ${escapeHtml(s.n)}</a>`).join('')}
+        </div>
+      </div>` : ''}
+
+      <div class="disclaimer">⚠ AI가 웹 검색으로 자동 조사한 결과입니다. 배포 전 팀 내 교차 확인을 권장합니다.</div>
+    `;
+  }
+
+  // ---------- drag & drop (수정 모드 전용) ----------
+  let draggedItem = null;
+
+  function enableDetailDrag(reportBody){
+    const list = reportBody.querySelector('#detailList') || reportBody.querySelector('.detail-list');
+    if (!list) return;
+
+    list.querySelectorAll('.detail-item').forEach(item => {
+      // 드래그 핸들 추가
+      if (!item.querySelector('.drag-handle')){
+        const handle = document.createElement('span');
+        handle.className = 'drag-handle';
+        handle.textContent = '⠿';
+        handle.title = '드래그하여 순서 변경';
+        handle.setAttribute('contenteditable', 'false');
+        item.prepend(handle);
+
+        handle.addEventListener('mousedown', () => item.setAttribute('draggable', 'true'));
+      }
+
+      item.addEventListener('dragstart', (e) => {
+        draggedItem = item;
+        item.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+      });
+      item.addEventListener('dragend', () => {
+        item.classList.remove('dragging');
+        item.removeAttribute('draggable');
+        draggedItem = null;
+      });
+      item.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        if (!draggedItem || draggedItem === item) return;
+        const rect = item.getBoundingClientRect();
+        const isAfter = e.clientY > rect.top + rect.height / 2;
+        if (isAfter){
+          item.after(draggedItem);
+        } else {
+          item.before(draggedItem);
+        }
+      });
+    });
+  }
+
+  function disableDetailDrag(reportBody){
+    reportBody.querySelectorAll('.drag-handle').forEach(h => h.remove());
+    reportBody.querySelectorAll('.detail-item').forEach(item => item.removeAttribute('draggable'));
+  }
+
+  // 수정 완료 시 DOM 순서/문구를 구조화 데이터로 되돌려 JSON에도 반영
+  function syncDetailFromDom(reportBody, report){
+    const items = reportBody.querySelectorAll('.detail-item');
+    if (!items.length || !report.sns_trend) return;
+    const newDetail = [...items].map(el => ({
+      label: (el.querySelector('.detail-body b')?.textContent || '').trim(),
+      sentiment: el.dataset.sent || 'positive',
+      desc: (el.querySelector('.detail-body span')?.textContent || '').trim()
+    }));
+    report.sns_trend.detail = newDetail;
+  }
+
+  function renderReport(report){
+    const info = report.info || {};
+    reportCard.innerHTML = `
+      <div class="report-head">
+        <div>
+          <h2 class="report-title">${escapeHtml(report.game || '')}<small>${escapeHtml(info.dev || '')}${info.dev && info.pub ? ' · ' : ''}${escapeHtml(info.pub || '')}${report.stage_label ? ' · ' + escapeHtml(report.stage_label) : ''}</small></h2>
+          <div class="report-meta">GENERATED ${escapeHtml(report.generated_at || todayStr())}</div>
+        </div>
+        <div class="action-row">
+          <button class="action-btn" id="editBtn">✏️ 내용 수정</button>
+          <button class="action-btn" id="downloadJsonBtn">JSON 내보내기</button>
+          <button class="action-btn" id="downloadPdfBtn">PDF 다운로드</button>
+        </div>
+      </div>
+      <div id="editBanner" class="edit-banner hidden">✏️ 수정 모드입니다. 본문을 클릭해 편집하고, SNS 반응 항목은 좌측 ⠿ 핸들을 드래그해 순서를 바꿀 수 있습니다. [수정 완료]를 누르면 팀 아카이브와 JSON에 반영됩니다.</div>
+      <div id="reportBody">${report.edited_html ? report.edited_html : buildReportBodyHtmlV2(report)}</div>
+    `;
+
+    const editBtn = document.getElementById('editBtn');
+    const editBanner = document.getElementById('editBanner');
+    const reportBody = document.getElementById('reportBody');
+
+    editBtn.addEventListener('click', async () => {
+      if (!isEditing){
+        isEditing = true;
+        reportBody.setAttribute('contenteditable', 'true');
+        editBanner.classList.remove('hidden');
+        editBtn.textContent = '✔ 수정 완료';
+        editBtn.classList.add('saving');
+        enableDetailDrag(reportBody);
+      } else {
+        isEditing = false;
+        reportBody.removeAttribute('contenteditable');
+        editBanner.classList.add('hidden');
+        editBtn.textContent = '✏️ 내용 수정';
+        editBtn.classList.remove('saving');
+        disableDetailDrag(reportBody);
+        syncDetailFromDom(reportBody, report);
+        report.edited_html = reportBody.innerHTML;
+        currentReport = report;
+        if (currentActiveId){
+          await saveReport(currentActiveId, report);
+          statusText.textContent = '✓ 수정 내용이 저장되었습니다';
+          statusText.className = 'status-text';
+        }
+      }
+    });
+
+    document.getElementById('downloadJsonBtn').addEventListener('click', () => downloadJson(report));
+    document.getElementById('downloadPdfBtn').addEventListener('click', () => downloadPdf(report));
+    const shareBtn = document.createElement('button');
+    shareBtn.className = 'action-btn';
+    shareBtn.textContent = '웹 공유용 HTML';
+    shareBtn.addEventListener('click', () => downloadShareHtml(report));
+    reportCard.querySelector('.action-row')?.appendChild(shareBtn);
+  }
+
+  // ---------- prompt ----------
+  function buildSystemPrompt(isCbt){
+    let schema = '{"game":"","info":{"genre":"","dev":"","pub":"","platform":"","engine":"","release":"","note":""},"overview":"","features":[{"title":"","points":["",""]}],"video_trend":{"summary":"","points":["",""],"date":"YYYY/MM/DD"},"sns_trend":{"overall":"긍정적|부정적|혼재","quick_pos":["","",""],"quick_neg":["","",""],"detail":[{"label":"","sentiment":"positive|negative|mixed","desc":""}],"date":"YYYY/MM/DD"},"metrics":{"steamdb":"","sales":"","rank":"","date":"YYYY/MM/DD","note":""},"sources":[{"n":"","u":""}]';
+    schema = '{"game":"","info":{"genre":"","dev":"","pub":"","platform":"","engine":"","release":"","note":""},"overview":{"game_summary":"","positive_summary":"","negative_summary":"","service_mood":""},"features":[{"title":"","category":"in_game","points":["",""]}],"video_trend":{"summary":"","points":["",""],"date":"YYYY/MM/DD"},"sns_trend":{"overall":"positive|negative|mixed","quick_pos":["",""],"quick_neg":["",""],"detail":[{"label":"","sentiment":"positive|negative|mixed","desc":""}],"date":"YYYY/MM/DD"},"metrics":{"items":[{"label":"","value":"","source":""}],"date":"YYYY/MM/DD","note":""},"sources":[{"n":"","u":""}]';
+    if (isCbt){
+      schema += ',"cbt_info":{"history":[{"name":"","period":"","region":"","note":""}],"pv_schedule":[{"title":"","date":"","note":""}]}';
+    }
+    schema += '}';
+
+    return `당신은 게임 분석팀 소속의 유저 리서치 및 게임 분석 전문가입니다. 오늘 날짜는 ${todayStr()}입니다.
+
+[검색 필수 - 가장 중요한 규칙]
+- 이 게임은 당신의 학습 데이터에 없거나 정보가 오래되었을 가능성이 높은 최신 게임입니다. 학습된 내부 지식만으로 작성하는 것을 절대 금지합니다.
+- 반드시 web_search를 최소 5회 이상, 서로 다른 관점의 검색어로 수행한 뒤 작성하세요. 예시:
+  1) "게임명 + 개발사" (게임 식별 확인)
+  2) "게임명 + 사전예약" 또는 "게임명 + 출시" (뉴스 기사, 정량 지표)
+  3) "게임명 + 시스템" 또는 "게임명 + 특징" (게임 시스템)
+  4) "게임명 + 반응" 또는 "게임명 + 후기" (커뮤니티/유저 반응)
+  5) "게임명 + CBT" 또는 "게임명 + 테스트" (테스트 이력)
+- 첫 검색 결과로 게임의 정체(장르, 개발사, 핵심 시스템)를 먼저 확정하고, 사용자가 제공한 특징 힌트와 일치하는지 확인하세요. 힌트와 다른 게임이 검색되면 검색어를 바꿔 다시 찾으세요.
+- 핵심 수치(사전예약자 수, 판매량 등)는 뉴스 기사 검색으로 반드시 확인하고, 확인된 수치는 절대 누락하지 마세요.
+- 검색 결과에 나오지 않는 내용을 추측으로 채우지 마세요. 검색을 충분히 했는데도 확인되지 않는 필드만 "추가 확인 필요"로 표기하세요.
+
+[동명 게임 방지]
+- 개발사가 주어지면 반드시 그 개발사의 게임 기준으로만 작성하세요.
+- 특징 힌트가 주어지면 검색 결과가 힌트와 일치하는 게임인지 반드시 대조하세요.
+- 개발사가 없고 동명 게임이 여럿이면 가장 화제가 된 게임 기준으로 작성하되 info.note에 "동명 게임 다수 존재, 개발사 확인 필요"라고 표기하세요.
+${isCbt ? `
+[CBT/출시 전 게임 - 매우 중요]
+- 이 게임은 아직 정식 출시 전입니다. 사용자가 지정한 테스트 회차를 중심으로 반응/정보를 수집하세요. 다른 회차 테스트 반응과 섞지 마세요.
+- cbt_info.history에 이 게임의 역대 테스트 이력(테스트명, 기간, 지역/플랫폼, 비고)을 시간순으로 정리하세요.
+- cbt_info.pv_schedule에 공식 PV/트레일러/쇼케이스 공개 일정(제목, 공개일 YYYY/MM/DD, 비고)을 정리하세요.
+- metrics는 출시 전이므로 사전예약자 수, 위시리스트 수 등 확인 가능한 지표를 대신 기재하세요.` : ''}
+
+[깊이 있는 조사]
+- 실제 게임을 플레이하지 않고도 이해할 수 있을 정도로 구체적으로 작성하세요.
+- features는 3~4개 항목, 각 항목마다 points 2~4개. 수치·경쟁작 비교·실제 조작 방식 포함.
+- sns_trend.detail은 4~6개 항목. label(압축 제목) + sentiment(positive/negative/mixed) + desc(2~3문장의 구체적 근거). 긍정/부정/복합을 골고루 포함하고, 복합적인 의견(장점과 단점이 함께 언급되는 반응)은 sentiment를 "mixed"로 표기하세요.
+- video_trend.points에는 영상/스트리밍에서 관찰되는 구체적 경향 2~3개.
+
+[출처/날짜]
+- 영상 반응은 기본적으로 한국 기준, 해외 국가가 지정되면 해당 국가 반응도 포함.
+- 수치 지표는 근거 자료의 날짜를 YYYY/MM/DD로 표기.
+- sources에는 실제 참고한 출처(제목+URL) 3~5개.
+
+마지막 응답에는 코드블록, 인사말, 설명 없이 아래 스키마의 순수 JSON 하나만 반환하세요:
+${schema}
+
+[REQUIRED REPORT RULES]
+- This is a launch-trend report, not a generic game summary. overview.game_summary describes the game and its current launch/test context in 2-3 sentences. overview.positive_summary and overview.negative_summary separately summarize actual player sentiment. overview.service_mood ends with a concise assessment of the overall launch/service situation, including confidence and the main watchpoint.
+- metrics.items must be in this order when data is applicable: Steam sales rank, Steam concurrent players, sales/downloads/pre-registrations, app-market rank. Each value must be a short number-first statement only (for example: "Steam sales rank: #1", "Pre-registrations: 16 million", or "Not available before launch"). Put the source name, page, date, or URL in source on the second line. Do not put explanation in value and do not invent numbers.
+- features must contain in-game playable systems only: combat, characters, progression, exploration, collection, multiplayer, controls, or other gameplay mechanics. Never include CBT schedules, login/invitation issues, beta data wipes, rewards, compensation, events, operations, monetization, or retention design in features.
+- A favorable or unfavorable player reaction to service/reward/compensation/retention design belongs in sns_trend.detail with the correct sentiment. Factual test schedules and official operations belong in cbt_info, not features.
+- All fields must be Korean except proper nouns and source titles.`;
+  }
+
+  function extractJson(text){
+    let t = text.trim();
+    t = t.replace(/```json/gi,'').replace(/```/g,'').trim();
+    const start = t.indexOf('{');
+    const end = t.lastIndexOf('}');
+    if (start === -1 || end === -1) throw new Error('JSON 형식을 찾을 수 없습니다');
+    return JSON.parse(t.slice(start, end+1));
+  }
+
+  // ---------- API call (pause_turn 대응) ----------
+  async function callOpenAI(userMsg, isCbt){
+    bumpProgress(25, 'OpenAI web search in progress');
+    const response = await fetch('/api/report', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        instructions: buildSystemPrompt(isCbt),
+        input: userMsg
+      })
+    });
+    const data = await response.json();
+    if (!response.ok || data.error) throw new Error(data.error || 'OpenAI API request failed');
+    if (!data.text || !data.text.trim()) throw new Error('OpenAI returned no text');
+    return data.text;
+  }
+
+  // Legacy implementation retained below only as an inactive reference.
+  async function callClaude(userMsg, isCbt){
+    const messages = [{ role: 'user', content: userMsg }];
+    const maxRounds = 6;
+    let lastText = '';
+
+    for (let round = 0; round < maxRounds; round++){
+      bumpProgress(Math.min(20 + round * 15, 88), round === 0 ? '웹 검색 및 조사 중' : `조사 계속 진행 중 (${round + 1}라운드)`);
+
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-6',
+          max_tokens: 8000,
+          system: buildSystemPrompt(isCbt),
+          messages: messages,
+          tools: [{ type: 'web_search_20250305', name: 'web_search' }]
+        })
+      });
+
+      const data = await response.json();
+      if (data.error){
+        throw new Error(data.error.message || 'API 오류가 발생했습니다');
+      }
+
+      const textInThisRound = (data.content || [])
+        .filter(item => item.type === 'text')
+        .map(item => item.text)
+        .join('\n');
+      if (textInThisRound.trim()) lastText = textInThisRound;
+
+      if (data.stop_reason === 'pause_turn'){
+        messages.push({ role: 'assistant', content: data.content });
+        continue;
+      }
+      if (data.stop_reason === 'max_tokens'){
+        messages.push({ role: 'assistant', content: data.content });
+        messages.push({ role: 'user', content: '이어서 JSON을 끝까지 완성해줘. 지금까지 작성한 내용을 포함해 완전한 JSON 하나로 다시 출력해.' });
+        continue;
+      }
+      return lastText;
+    }
+    return lastText;
+  }
+
+  async function generateReport(){
+    const gameName = gameNameInput.value.trim();
+    const dev = devInput.value.trim();
+    const country = countryInput.value.trim();
+    const hint = hintInput.value.trim();
+    const stage = getStage();
+    const cbtName = cbtNameInput.value.trim();
+    const isCbt = stage === 'cbt';
+
+    if (!gameName){
+      statusText.textContent = '게임명을 입력해 주세요.';
+      statusText.className = 'status-text err';
+      return;
+    }
+    if (isCbt && !cbtName){
+      statusText.textContent = '출시 전 게임은 이번 테스트 명칭을 입력해 주세요. (예: 한국 1차 CBT)';
+      statusText.className = 'status-text err';
+      return;
+    }
+
+    generateBtn.disabled = true;
+    statusText.className = 'status-text';
+    statusText.textContent = '';
+    progressWrap.classList.remove('hidden');
+    startProgressSim();
+
+    let userMsg = `게임명: ${gameName}`;
+    if (dev) userMsg += `\n개발사: ${dev}`;
+    if (hint) userMsg += `\n게임 특징 힌트(이 특징과 일치하는 게임인지 검색으로 반드시 확인): ${hint}`;
+    if (country) userMsg += `\n추가 조사 국가: ${country}`;
+    if (isCbt){
+      userMsg += `\n출시 상태: 출시 전 (테스트 진행 중)`;
+      userMsg += `\n이번 테스트: ${cbtName} — 이 테스트에 대한 반응/정보만 수집할 것`;
+    } else {
+      userMsg += `\n출시 상태: 정식 출시`;
+    }
+    userMsg += `\n먼저 web_search로 이 게임을 충분히 조사한 뒤(최소 5회 검색), 지시된 JSON 스키마로 심층 보고서를 작성해줘.`;
+
+    try{
+      const fullText = await callOpenAI(userMsg, isCbt);
+      if (!fullText.trim()) throw new Error('응답에서 텍스트를 찾을 수 없습니다');
+
+      bumpProgress(95, '보고서 정리 중');
+      const report = extractJson(fullText);
+      report.generated_at = todayStr();
+      report.stage_label = isCbt ? cbtName : '정식 출시';
+      if (!report.info) report.info = {};
+      if (dev && !report.info.dev) report.info.dev = dev;
+
+      const id = Date.now() + '_' + slugify(gameName);
+      currentActiveId = id;
+      currentReport = report;
+
+      await saveReport(id, report);
+      const list = await loadArchive();
+      list.unshift({
+        id,
+        game: report.game || gameName,
+        dev: report.info.dev || dev || '',
+        date: report.generated_at,
+        overall: (report.sns_trend || {}).overall || '혼재',
+        stage: report.stage_label
+      });
+      await saveArchive(list);
+      renderArchiveList(list);
+
+      isEditing = false;
+      renderReport(report);
+      stopProgressSim('완료');
+      statusText.textContent = '✓ 보고서 생성 완료 — [내용 수정]으로 검수 후 PDF로 저장하세요';
+      formCard.classList.add('hidden');
+
+    }catch(err){
+      console.error(err);
+      failProgressSim();
+      statusText.textContent = '보고서 생성에 실패했습니다: ' + err.message + ' (다시 시도해 주세요)';
+      statusText.className = 'status-text err';
+    }finally{
+      generateBtn.disabled = false;
+      setTimeout(() => { progressWrap.classList.add('hidden'); setProgress(0,'대기 중'); }, 1500);
+    }
+  }
+
+  generateBtn.addEventListener('click', generateReport);
+
+  // ---------- standalone HTML export ----------
+  function downloadShareHtml(report){
+    if (isEditing){
+      alert('먼저 [수정 완료]를 눌러 편집을 마친 뒤 공유용 HTML을 저장해 주세요.');
+      return;
+    }
+    const clone = reportCard.cloneNode(true);
+    clone.querySelector('.action-row')?.remove();
+    clone.querySelector('.edit-banner')?.remove();
+    clone.querySelector('#reportBody')?.removeAttribute('contenteditable');
+    const styles = [...document.querySelectorAll('style')].map(style => style.textContent).join('\n');
+    const page = `<!doctype html><html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>${escapeHtml(report.game || 'game')}_동향보고서</title><style>${styles}\nbody{padding:20px;background:#F4F6F9}.report-card{max-width:1180px;margin:0 auto}.app,.main{max-width:none;padding:0;display:block}</style></head><body><main class="main">${clone.outerHTML}</main></body></html>`;
+    const blob = new Blob([page], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${slugify(report.game)}_동향보고서_공유용.html`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  // ---------- JSON export ----------
+  function downloadJson(report){
+    // 디자인 HTML 이식용: 구조화 데이터 전체 + 수정본 HTML 포함
+    const exportData = { ...report };
+    if (exportData.sns_trend && exportData.sns_trend.detail){
+      exportData.sns_trend = { ...exportData.sns_trend, detail: sortDetail(exportData.sns_trend.detail) };
+      // 사용자가 수정 모드에서 직접 순서를 바꾼 경우에는 그 순서(detail 배열 그대로)를 존중
+      if (report.edited_html) exportData.sns_trend.detail = report.sns_trend.detail;
+    }
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${slugify(report.game)}_동향데이터.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  // ---------- PDF export ----------
+  async function downloadPdf(report){
+    if (isEditing){
+      alert('먼저 [수정 완료]를 눌러 편집을 마친 뒤 PDF로 저장해 주세요.');
+      return;
+    }
+    const el = reportCard;
+    const actionRow = el.querySelector('.action-row');
+    if (actionRow) actionRow.style.visibility = 'hidden';
+
+    try{
+      // Split only at report section/card boundaries. The old exporter cropped one
+      // tall image at arbitrary A4 heights, which split metric rows and cards.
+      const exportCanvas = await html2canvas(el, { backgroundColor: '#FFFFFF', scale: 2 });
+      const { jsPDF: PdfCtor } = window.jspdf;
+      const exportPdf = new PdfCtor('p', 'pt', 'a4');
+      const pageWidth = exportPdf.internal.pageSize.getWidth();
+      const pageHeight = exportPdf.internal.pageSize.getHeight();
+      const margin = 22;
+      const contentWidth = pageWidth - margin * 2;
+      const contentHeight = pageHeight - margin * 2;
+      const pixelsPerPoint = exportCanvas.width / el.getBoundingClientRect().width;
+      const maxSliceHeight = Math.floor(contentHeight * exportCanvas.width / contentWidth);
+      const elTop = el.getBoundingClientRect().top;
+      const breakPositions = selector => [...el.querySelectorAll(selector)]
+        .map(node => Math.round((node.getBoundingClientRect().top - elTop) * pixelsPerPoint))
+        .filter(y => y > 0 && y < exportCanvas.height)
+        .sort((a, b) => a - b);
+      const sectionBreaks = breakPositions('.section');
+      const cardBreaks = breakPositions('.feature-item, .detail-item, .trend-box, .overview-box, .cbt-table');
+      const bestBreak = (breaks, from, max) => breaks.filter(y => y > from + 20 && y <= max).pop();
+
+      let sourceY = 0;
+      let pageNumber = 0;
+      while (sourceY < exportCanvas.height){
+        const maxY = Math.min(sourceY + maxSliceHeight, exportCanvas.height);
+        let cutY = bestBreak(sectionBreaks, sourceY, maxY);
+        if (!cutY) cutY = bestBreak(cardBreaks, sourceY, maxY);
+        if (!cutY || (cutY - sourceY) < maxSliceHeight * 0.38) cutY = maxY;
+        const sliceHeight = cutY - sourceY;
+        const slice = document.createElement('canvas');
+        slice.width = exportCanvas.width;
+        slice.height = sliceHeight;
+        slice.getContext('2d').drawImage(exportCanvas, 0, sourceY, exportCanvas.width, sliceHeight, 0, 0, exportCanvas.width, sliceHeight);
+        if (pageNumber > 0) exportPdf.addPage();
+        exportPdf.addImage(slice.toDataURL('image/png'), 'PNG', margin, margin, contentWidth, sliceHeight * contentWidth / exportCanvas.width);
+        sourceY = cutY;
+        pageNumber += 1;
+      }
+      exportPdf.save(`${slugify(report.game)}_trend_report.pdf`);
+      return;
+
+      if (false){
+      const canvas = await html2canvas(el, { backgroundColor: '#FFFFFF', scale: 2 });
+      const imgData = canvas.toDataURL('image/png');
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF('p', 'pt', 'a4');
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const imgWidth = pageWidth;
+      const imgHeight = canvas.height * imgWidth / canvas.width;
+      let heightLeft = imgHeight;
+      let position = 0;
+
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+
+      while (heightLeft > 0){
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+      }
+
+      pdf.save(`${slugify(report.game)}_동향보고서.pdf`);
+      }
+    }catch(e){
+      console.error(e);
+      alert('PDF 생성에 실패했습니다: ' + e.message);
+    }finally{
+      if (actionRow) actionRow.style.visibility = 'visible';
+    }
+  }
+
+  // ---------- init ----------
+  updateStageUI();
+  refreshArchiveList();
+
+})();
+</script>
+</body>
+</html>

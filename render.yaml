@@ -1,0 +1,15 @@
+services:
+  - type: web
+    runtime: node
+    name: game-signal-desk
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
+        value: gpt-5.4-mini
+      - key: APP_USERNAME
+        sync: false
+      - key: APP_PASSWORD
+        sync: false

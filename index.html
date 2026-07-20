@@ -86,9 +86,9 @@
   .archive-item.active{ border-color:var(--accent); background:var(--accent-soft); }
   .archive-item-top{ display:flex; align-items:center; gap:7px; }
   .sentiment-dot{ width:7px; height:7px; border-radius:50%; flex:none; }
-  .sentiment-dot.긍정적{ background:var(--pos); }
-  .sentiment-dot.부정적{ background:var(--neg); }
-  .sentiment-dot.혼재{ background:var(--amber); }
+  .sentiment-dot.긍정적, .sentiment-dot.positive{ background:var(--pos); }
+  .sentiment-dot.부정적, .sentiment-dot.negative{ background:var(--neg); }
+  .sentiment-dot.혼재, .sentiment-dot.mixed{ background:var(--amber); }
   .archive-item-name{ font-size:13px; font-weight:700; color:var(--ink); }
   .archive-item-dev{ font-size:11px; color:var(--mute); }
   .archive-item-date{ font-size:11px; color:var(--mute-2); font-family:var(--font-mono); }
@@ -205,9 +205,16 @@
     display:inline-block; font-size:12px; font-weight:700; padding:3px 10px; border-radius:20px;
     margin-bottom:12px; font-family:var(--font-mono);
   }
-  .overall-tag.긍정적{ background:var(--pos-soft); color:var(--pos); border:1px solid #BFE5D4; }
-  .overall-tag.부정적{ background:var(--neg-soft); color:var(--neg); border:1px solid #F0C8D0; }
-  .overall-tag.혼재{ background:var(--amber-soft); color:var(--amber); border:1px solid #E8D5AC; }
+  .overall-tag.긍정적, .overall-tag.positive{ background:var(--pos-soft); color:var(--pos); border:1px solid #BFE5D4; }
+  .overall-tag.부정적, .overall-tag.negative{ background:var(--neg-soft); color:var(--neg); border:1px solid #F0C8D0; }
+  .overall-tag.혼재, .overall-tag.mixed{ background:var(--amber-soft); color:var(--amber); border:1px solid #E8D5AC; }
+  .sentiment-assessment{ margin:0 0 13px; padding:12px 14px; border:1px solid var(--border); border-left:4px solid var(--amber); border-radius:10px; background:var(--surface-2); }
+  .sentiment-assessment.positive{ border-left-color:var(--pos); }
+  .sentiment-assessment.negative{ border-left-color:var(--neg); }
+  .sentiment-assessment.mixed{ border-left-color:var(--amber); }
+  .sentiment-assessment-head{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .sentiment-assessment-head b{ font-size:13.5px; }
+  .sentiment-assessment p{ margin:7px 0 0; color:var(--mute); font-size:12.5px; }
 
   .detail-list{ display:flex; flex-direction:column; gap:9px; }
   .detail-item{
@@ -510,6 +517,16 @@
       (SENT_ORDER[a.sentiment] ?? 3) - (SENT_ORDER[b.sentiment] ?? 3)
     );
   }
+  function sentimentClass(value){
+    const v = String(value || '').toLowerCase();
+    if (v.includes('positive') || v.includes('긍정')) return 'positive';
+    if (v.includes('negative') || v.includes('부정')) return 'negative';
+    return 'mixed';
+  }
+  function sentimentLabel(value){
+    const kind = sentimentClass(value);
+    return kind === 'positive' ? '긍정 우세' : kind === 'negative' ? '부정 우세' : '혼재';
+  }
 
   // ---------- storage ----------
   async function loadArchive(){
@@ -544,7 +561,7 @@
       btn.className = 'archive-item' + (item.id === currentActiveId ? ' active' : '');
       btn.innerHTML = `
         <div class="archive-item-top">
-          <span class="sentiment-dot ${escapeHtml(item.overall)}"></span>
+          <span class="sentiment-dot ${sentimentClass(item.overall)}"></span>
           <span class="archive-item-name">${escapeHtml(item.game)}</span>
         </div>
         ${item.stage ? `<span class="archive-item-stage">${escapeHtml(item.stage)}</span>` : ''}
@@ -602,6 +619,10 @@
     const detail = sortDetail(sns.detail);
     const officialPvLinks = videoLinksHtml(video.official_pv);
     const reviewVideoLinks = videoLinksHtml(video.review_videos);
+    const assessment = sns.assessment || {};
+    const sentimentValue = assessment.verdict || sns.overall;
+    const sentimentKind = sentimentClass(sentimentValue);
+    const sentimentVerdict = sentimentLabel(sentimentValue);
 
     return `
       <div class="section">
@@ -669,7 +690,10 @@
 
       <div class="section">
         <p class="section-label">SNS · 커뮤니티 반응</p>
-        <span class="overall-tag ${escapeHtml(sns.overall)}">${escapeHtml(sns.overall) || '추가 확인 필요'}</span>
+        <div class="sentiment-assessment ${sentimentKind}">
+          <div class="sentiment-assessment-head"><span class="overall-tag ${sentimentKind}">${escapeHtml(sentimentVerdict)}</span><b>종합 분위기 판단</b>${assessment.confidence ? `<span class="date-chip">신뢰도 ${escapeHtml(assessment.confidence)}</span>` : ''}</div>
+          <p>${escapeHtml(assessment.basis) || '수집한 공개 반응 표본을 기준으로 판단한 결과입니다. 세부 근거는 아래 반응 항목을 확인해 주세요.'}</p>
+        </div>
         <div class="quick-tags">${(sns.quick_pos||[]).map(p=>`<span class="quick-tag pos">▲ ${escapeHtml(p)}</span>`).join('')}${(sns.quick_neg||[]).map(n=>`<span class="quick-tag neg">▼ ${escapeHtml(n)}</span>`).join('')}</div>
         <div class="detail-list" id="detailList">${detail.map(d => { const sent = SENT_ORDER.hasOwnProperty(d.sentiment) ? d.sentiment : 'positive'; return `<div class="detail-item ${sent}" data-sent="${sent}"><span class="detail-marker ${sent}">${SENT_MARK[sent]}</span><div class="detail-body"><b>${escapeHtml(d.label)}</b><span>${escapeHtml(d.desc)}</span></div></div>`; }).join('')}</div>
         <div style="margin-top:10px;"><span class="date-chip">${escapeHtml(sns.date) || '날짜 미상'}</span></div>
@@ -920,7 +944,7 @@
   // ---------- prompt ----------
   function buildSystemPrompt(isCbt){
     let schema = '{"game":"","info":{"genre":"","dev":"","pub":"","platform":"","engine":"","release":"","note":""},"overview":"","features":[{"title":"","points":["",""]}],"video_trend":{"summary":"","points":["",""],"date":"YYYY/MM/DD"},"sns_trend":{"overall":"긍정적|부정적|혼재","quick_pos":["","",""],"quick_neg":["","",""],"detail":[{"label":"","sentiment":"positive|negative|mixed","desc":""}],"date":"YYYY/MM/DD"},"metrics":{"steamdb":"","sales":"","rank":"","date":"YYYY/MM/DD","note":""},"sources":[{"n":"","u":""}]';
-    schema = '{"game":"","info":{"genre":"","dev":"","pub":"","platform":"","engine":"","release":"","note":""},"overview":{"game_summary":"","positive_summary":"","negative_summary":"","service_mood":""},"features":[{"title":"","category":"in_game","points":["",""]}],"video_trend":{"summary":"","points":["",""],"official_pv":[{"title":"","channel":"","url":"https://www.youtube.com/..."}],"review_videos":[{"title":"","channel":"","url":"https://www.youtube.com/..."}],"date":"YYYY/MM/DD"},"sns_trend":{"overall":"positive|negative|mixed","quick_pos":["",""],"quick_neg":["",""],"detail":[{"label":"","sentiment":"positive|negative|mixed","desc":""}],"date":"YYYY/MM/DD"},"metrics":{"items":[{"label":"","value":"","source":""}],"unavailable_items":[{"label":"","reason":""}],"date":"YYYY/MM/DD","note":""},"sources":[{"n":"","u":""}]';
+    schema = '{"game":"","info":{"genre":"","dev":"","pub":"","platform":"","engine":"","release":"","note":""},"overview":{"game_summary":"","positive_summary":"","negative_summary":"","service_mood":""},"features":[{"title":"","category":"in_game","points":["",""]}],"video_trend":{"summary":"","points":["",""],"official_pv":[{"title":"","channel":"","url":"https://www.youtube.com/..."}],"review_videos":[{"title":"","channel":"","url":"https://www.youtube.com/..."}],"date":"YYYY/MM/DD"},"sns_trend":{"overall":"긍정 우세|부정 우세|혼재","assessment":{"verdict":"긍정 우세|부정 우세|혼재","confidence":"높음|보통|낮음","basis":"공개 표본 수·공감 수·반복 언급을 근거로 한 한국어 문장"},"quick_pos":["",""],"quick_neg":["",""],"detail":[{"label":"","sentiment":"positive|negative|mixed","desc":""}],"date":"YYYY/MM/DD"},"metrics":{"items":[{"label":"","value":"","source":""}],"unavailable_items":[{"label":"","reason":""}],"date":"YYYY/MM/DD","note":""},"sources":[{"n":"","u":""}]';
     if (isCbt){
       schema += ',"cbt_info":{"history":[{"name":"","period":"","region":"","note":""}],"pv_schedule":[{"title":"","date":"","note":""}]}';
     }
@@ -955,6 +979,7 @@ ${isCbt ? `
 - 실제 게임을 플레이하지 않고도 이해할 수 있을 정도로 구체적으로 작성하세요.
 - features는 3~4개 항목, 각 항목마다 points 2~4개. 수치·경쟁작 비교·실제 조작 방식 포함.
 - sns_trend.detail은 4~6개 항목. label(압축 제목) + sentiment(positive/negative/mixed) + desc(2~3문장의 구체적 근거). 긍정/부정/복합을 골고루 포함하고, 복합적인 의견(장점과 단점이 함께 언급되는 반응)은 sentiment를 "mixed"로 표기하세요.
+- sns_trend.assessment는 반드시 작성하세요. assessment.verdict와 overall에는 "긍정 우세", "부정 우세", "혼재" 중 하나를 넣고, basis에는 수집한 공개 게시물·댓글·리뷰의 표본 수, 게시물 공감/추천 수, 반복 언급의 비중 중 실제로 확인 가능한 근거를 사용해 왜 그 판단인지 1~2문장으로 적으세요. 전체 여론으로 단정하지 말고 "수집한 공개 표본 기준"임을 명시하세요. 표본 수나 공감 수를 확인하지 못했으면 숫자를 지어내지 말고, 확인 가능한 반응의 방향성과 한계를 basis에 적으세요.
 - video_trend.points에는 영상/스트리밍에서 관찰되는 구체적 경향 2~3개.
 - video_trend.official_pv에는 공식 유튜브 채널이 올린 PV·트레일러 링크를 1~2개 기재하세요. video_trend.review_videos에는 실제 리뷰·분석·첫인상 영상의 유튜브 링크를 2~3개 기재하세요. 각 항목은 title, channel, url을 포함하며 url에는 실제 https YouTube 영상 링크만 넣으세요. 검색 결과에서 실제 링크를 확인하지 못한 영상은 절대 추측하거나 채우지 마세요.
 
@@ -971,6 +996,7 @@ ${schema}
 - metrics.items must use Korean labels only and must be in this order when data is applicable: "Steam 매출 순위", "Steam 24시간 최고 동시 접속자 수", "판매량·다운로드·사전 예약자 수", "앱 마켓 순위". For Steam player data, use SteamDB's "24-hour peak" only; never use the current player count. Each value must be a very short number-focused statement only (for example: "1위", "10만 명", "사전 예약자 1,600만 명"). Put the source name, page, and date or URL in source, which is shown on the second line. Do not put English labels or explanations in value and do not invent numbers.
 - Never write "Not available", "N/A", "확인 필요", or similar placeholders in metrics.items. If an applicable metric cannot be verified, omit it from items and add it to metrics.unavailable_items using its Korean label and a concise Korean reason, for example {"label":"Steam 매출 순위","reason":"출시 전이라 Steam 차트 데이터가 없어"}. The report will show a bottom note explaining that those items were excluded.
 - For video_trend.official_pv, provide 1-2 verified HTTPS YouTube links from the official publisher/developer/game channel only. For video_trend.review_videos, provide 2-3 verified HTTPS YouTube links to independent review, analysis, or first-impression videos; do not use reuploads, shorts, search pages, channel pages, or fabricated URLs. Use an empty array when a verified link is unavailable.
+- sns_trend.overall and sns_trend.assessment.verdict must be exactly one of "긍정 우세", "부정 우세", or "혼재". Assess the direction from the collected public sample by weighing verified post/review counts, likes/upvotes, comments, and repeated themes when those signals are available. assessment.basis must state the evidence and its limits in Korean; never fabricate counts, likes, or engagement.
 - features must contain in-game playable systems only: combat, characters, progression, exploration, collection, multiplayer, controls, or other gameplay mechanics. Never include CBT schedules, login/invitation issues, beta data wipes, rewards, compensation, events, operations, monetization, or retention design in features.
 - A favorable or unfavorable player reaction to service/reward/compensation/retention design belongs in sns_trend.detail with the correct sentiment. Factual test schedules and official operations belong in cbt_info, not features.
 - All fields must be Korean except proper nouns and source titles.`;

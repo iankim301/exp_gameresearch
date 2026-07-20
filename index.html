@@ -76,6 +76,7 @@
   .ghost-btn:hover{ border-color:var(--accent); color:var(--accent); }
   .archive-list{ display:flex; flex-direction:column; gap:8px; max-height:600px; overflow-y:auto; }
   .empty-note{ color:var(--mute-2); font-size:12.5px; margin:6px 2px; }
+  .archive-notice{ margin:12px 2px 0; padding-top:10px; border-top:1px solid var(--border); color:var(--mute-2); font-size:11.5px; line-height:1.5; }
   .archive-item{
     display:flex; flex-direction:column; gap:3px; padding:10px 11px; background:var(--surface-2);
     border:1px solid var(--border); border-radius:10px; cursor:pointer; text-align:left; width:100%;
@@ -290,6 +291,7 @@
       <div id="archiveList" class="archive-list">
         <p class="empty-note">불러오는 중…</p>
       </div>
+      <p class="archive-notice">보고서는 해당 페이지에서만 유효합니다. 필요하신 데이터는 필히 저장해주세요.</p>
     </aside>
 
     <main class="main">
@@ -307,13 +309,18 @@
           <label>개발사 <span class="optional">(권장)</span>
             <input id="devInput" type="text" placeholder="예) Ember Entertainment" />
           </label>
-          <label>해외 국가 <span class="optional">(선택)</span>
+          <label>검색할 지역 <span class="optional">(선택)</span>
             <input id="countryInput" type="text" placeholder="예) 일본, 미국" />
           </label>
         </div>
         <div class="field-row">
           <label>게임 특징 힌트 <span class="optional">(선택 · 동명/오인 방지용)</span>
             <input id="hintInput" type="text" placeholder="예) 포켓몬풍 몬스터 수집, 몬스터와 캐릭터가 합체하는 트와인 시스템" />
+          </label>
+        </div>
+        <div class="field-row">
+          <label>서치 포인트 <span class="optional">(선택 · 특히 확인하고 싶은 부분)</span>
+            <input id="searchPointInput" type="text" placeholder="예) 과금에 대한 유저 반응, 경쟁작과의 차이, 출시 초반 흥행 가능성" />
           </label>
         </div>
 
@@ -357,6 +364,7 @@
   const devInput = document.getElementById('devInput');
   const countryInput = document.getElementById('countryInput');
   const hintInput = document.getElementById('hintInput');
+  const searchPointInput = document.getElementById('searchPointInput');
   const cbtNameInput = document.getElementById('cbtNameInput');
   const cbtNameWrap = document.getElementById('cbtNameWrap');
   const pillReleased = document.getElementById('pillReleased');
@@ -570,12 +578,12 @@
   }
 
   newReportBtn.addEventListener('click', () => {
-    currentActiveId = null;
-    currentReport = null;
-    isEditing = false;
+    if (isEditing){
+      alert('기존 보고서의 수정을 먼저 완료해 주세요.');
+      return;
+    }
     formCard.classList.remove('hidden');
-    reportCard.innerHTML = '<div class="empty-state">게임명을 입력하고 [시그널 수집 시작]을 누르면<br/>여기에 보고서가 표시됩니다.</div>';
-    refreshArchiveList();
+    gameNameInput.focus();
   });
 
   // ---------- render report ----------
@@ -951,7 +959,7 @@ ${isCbt ? `
 - video_trend.official_pv에는 공식 유튜브 채널이 올린 PV·트레일러 링크를 1~2개 기재하세요. video_trend.review_videos에는 실제 리뷰·분석·첫인상 영상의 유튜브 링크를 2~3개 기재하세요. 각 항목은 title, channel, url을 포함하며 url에는 실제 https YouTube 영상 링크만 넣으세요. 검색 결과에서 실제 링크를 확인하지 못한 영상은 절대 추측하거나 채우지 마세요.
 
 [출처/날짜]
-- 영상 반응은 기본적으로 한국 기준, 해외 국가가 지정되면 해당 국가 반응도 포함.
+- 영상 반응은 기본적으로 한국 기준이며, 검색할 지역이 지정되면 해당 지역의 반응도 포함.
 - 수치 지표는 근거 자료의 날짜를 YYYY/MM/DD로 표기.
 - sources에는 실제 참고한 출처(제목+URL) 3~5개.
 
@@ -1045,6 +1053,7 @@ ${schema}
     const dev = devInput.value.trim();
     const country = countryInput.value.trim();
     const hint = hintInput.value.trim();
+    const searchPoint = searchPointInput.value.trim();
     const stage = getStage();
     const cbtName = cbtNameInput.value.trim();
     const isCbt = stage === 'cbt';
@@ -1069,7 +1078,8 @@ ${schema}
     let userMsg = `게임명: ${gameName}`;
     if (dev) userMsg += `\n개발사: ${dev}`;
     if (hint) userMsg += `\n게임 특징 힌트(이 특징과 일치하는 게임인지 검색으로 반드시 확인): ${hint}`;
-    if (country) userMsg += `\n추가 조사 국가: ${country}`;
+    if (searchPoint) userMsg += `\n서치 포인트(보고서에서 우선적으로 조사하고 답할 내용): ${searchPoint}`;
+    if (country) userMsg += `\n검색할 지역: ${country}`;
     if (isCbt){
       userMsg += `\n출시 상태: 출시 전 (테스트 진행 중)`;
       userMsg += `\n이번 테스트: ${cbtName} — 이 테스트에 대한 반응/정보만 수집할 것`;

@@ -71,18 +71,42 @@ async function callClaude(instructions, input) {
 
 createServer(async (req, res) => {
   if (!isAuthorized(req, res)) return;
+
   if (req.method === 'POST' && req.url === '/api/report') {
     if (!process.env.ANTHROPIC_API_KEY) return send(res, 500, { error: 'ANTHROPIC_API_KEY is not set.' });
+
     let raw = '';
     for await (const chunk of req) raw += chunk;
+
+    let instructions, input;
     try {
-      const { instructions, input } = JSON.parse(raw);
+      ({ instructions, input } = JSON.parse(raw));
       if (typeof instructions !== 'string' || typeof input !== 'string') throw new Error('Invalid request.');
+    } catch (error) {
+      return send(res, 400, { error: error.message || 'Request failed.' });
+    }
+
+    // 응답 헤더를 먼저 보내고(200 고정), 조사가 끝날 때까지 15초마다 빈 공백 1바이트를
+    // 흘려보낸다. 이렇게 하면 Render 등 플랫폼의 프록시가 "응답이 없다"고 판단해
+    // 연결을 강제 종료(terminated)하는 것을 막을 수 있다. 공백은 JSON 앞뒤 여백으로
+    // 허용되는 문자라 프론트엔드의 JSON 파싱에는 영향이 없다.
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    const heartbeat = setInterval(() => {
+      try { res.write(' '); } catch { /* connection already closed */ }
+    }, 15000);
+
+    try {
       const text = await callClaude(instructions, input);
-      if (!text || !text.trim()) return send(res, 502, { error: 'Claude returned no text.' });
-      return send(res, 200, { text });
-    } catch (error) { return send(res, 400, { error: error.message || 'Request failed.' }); }
+      clearInterval(heartbeat);
+      if (!text || !text.trim()) { res.end(JSON.stringify({ error: 'Claude returned no text.' })); return; }
+      res.end(JSON.stringify({ text }));
+    } catch (error) {
+      clearInterval(heartbeat);
+      res.end(JSON.stringify({ error: error.message || 'Request failed.' }));
+    }
+    return;
   }
+
   if (req.method !== 'GET' && req.method !== 'HEAD') return send(res, 405, { error: 'Method not allowed' });
   const requested = req.url === '/' ? '/index.html' : req.url.split('?')[0];
   const file = normalize(join(root, requested));

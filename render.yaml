@@ -5,10 +5,10 @@ services:
     buildCommand: npm install
     startCommand: npm start
     envVars:
-      - key: OPENAI_API_KEY
+      - key: ANTHROPIC_API_KEY
         sync: false
-      - key: OPENAI_MODEL
-        value: gpt-5.4-mini
+      - key: CLAUDE_MODEL
+        value: claude-sonnet-5
       - key: APP_USERNAME
         sync: false
       - key: APP_PASSWORD

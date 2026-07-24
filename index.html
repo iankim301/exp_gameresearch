@@ -216,6 +216,12 @@
   .sentiment-assessment-head{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
   .sentiment-assessment-head b{ font-size:13.5px; }
   .sentiment-assessment p{ margin:7px 0 0; color:var(--mute); font-size:12.5px; }
+  .launch-signal{ margin-bottom:24px; padding:14px 16px; border:1px solid var(--border-strong); border-left:4px solid var(--accent); border-radius:10px; background:var(--accent-soft); }
+  .launch-signal-head{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .launch-signal-head b{ font-size:13.5px; }
+  .launch-signal p{ margin:7px 0 0; color:var(--mute); font-size:12.5px; }
+  .launch-signal-meta{ display:flex; flex-wrap:wrap; gap:6px; margin-top:9px; }
+  .launch-signal-meta span{ padding:3px 7px; border-radius:5px; background:var(--surface); border:1px solid var(--border); color:var(--mute); font-family:var(--font-mono); font-size:11px; }
 
   .detail-list{ display:flex; flex-direction:column; gap:9px; }
   .detail-item{
@@ -647,6 +653,8 @@
     const isUpdateReport = report.report_mode === 'update';
     const updateTarget = report.update_target || report.stage_label || '특정 업데이트/캐릭터';
     const updateDate = report.update_date || '';
+    const launchSignal = report.launch_signal || {};
+    const hasLaunchSignal = !isUpdateReport && (launchSignal.summary || launchSignal.phase || launchSignal.community_posts || launchSignal.youtube_videos);
 
     return `
       ${isUpdateReport ? `
@@ -670,6 +678,17 @@
         </div>
         ${info.note ? `<div class="metric-note">${escapeHtml(info.note)}</div>` : ''}
       </div>`}
+
+      ${hasLaunchSignal ? `
+      <div class="launch-signal">
+        <div class="launch-signal-head"><b>초기 출시 동향</b>${launchSignal.phase ? `<span class="date-chip">${escapeHtml(launchSignal.phase)}</span>` : ''}${launchSignal.attention ? `<span class="date-chip">주목도 ${escapeHtml(launchSignal.attention)}</span>` : ''}${launchSignal.data_sufficiency ? `<span class="date-chip">데이터 ${escapeHtml(launchSignal.data_sufficiency)}</span>` : ''}</div>
+        <p>${escapeHtml(launchSignal.summary) || '초기 동향 데이터를 수집 중입니다.'}</p>
+        <div class="launch-signal-meta">
+          ${launchSignal.community_posts ? `<span>커뮤니티 게시글 ${escapeHtml(launchSignal.community_posts)}</span>` : ''}
+          ${launchSignal.youtube_videos ? `<span>유튜브 관련 영상 ${escapeHtml(launchSignal.youtube_videos)}</span>` : ''}
+          ${launchSignal.scope ? `<span>${escapeHtml(launchSignal.scope)}</span>` : ''}
+        </div>
+      </div>` : ''}
 
       <div class="section">
         <p class="section-label">${isUpdateReport ? '업데이트·캐릭터 출시 동향' : '게임 소개 및 출시 동향'}</p>
@@ -724,8 +743,9 @@
       <div class="section">
         <p class="section-label">${isUpdateReport ? '업데이트·캐릭터 관련 SNS · 커뮤니티 반응' : 'SNS · 커뮤니티 반응'}</p>
         <div class="sentiment-assessment ${sentimentKind}">
-          <div class="sentiment-assessment-head"><span class="overall-tag ${sentimentKind}">${escapeHtml(sentimentVerdict)}</span><b>종합 분위기 판단</b>${assessment.confidence ? `<span class="date-chip">신뢰도 ${escapeHtml(assessment.confidence)}</span>` : ''}</div>
-          <p>${escapeHtml(assessment.basis) || '수집한 공개 반응 표본을 기준으로 판단한 결과입니다. 세부 근거는 아래 반응 항목을 확인해 주세요.'}</p>
+          <div class="sentiment-assessment-head"><span class="overall-tag ${sentimentKind}">${escapeHtml(sentimentVerdict)}</span><b>1차 분위기 판정</b>${assessment.decision_rule ? `<span class="date-chip">${escapeHtml(assessment.decision_rule)}</span>` : ''}${assessment.confidence ? `<span class="date-chip">신뢰도 ${escapeHtml(assessment.confidence)}</span>` : ''}</div>
+          <p>${escapeHtml(assessment.summary) || '수집한 공개 반응 표본을 기준으로 판단한 결과입니다. 세부 근거는 아래 반응 항목을 확인해 주세요.'}</p>
+          ${assessment.basis ? `<p>근거: ${escapeHtml(assessment.basis)}</p>` : ''}
         </div>
         <div class="quick-tags">${(sns.quick_pos||[]).map(p=>`<span class="quick-tag pos">▲ ${escapeHtml(p)}</span>`).join('')}${(sns.quick_neg||[]).map(n=>`<span class="quick-tag neg">▼ ${escapeHtml(n)}</span>`).join('')}</div>
         <div class="detail-list" id="detailList">${detail.map(d => { const sent = SENT_ORDER.hasOwnProperty(d.sentiment) ? d.sentiment : 'positive'; return `<div class="detail-item ${sent}" data-sent="${sent}"><span class="detail-marker ${sent}">${SENT_MARK[sent]}</span><div class="detail-body"><b>${escapeHtml(d.label)}</b><span>${escapeHtml(d.desc)}</span></div></div>`; }).join('')}</div>
@@ -977,7 +997,7 @@
   // ---------- prompt ----------
   function buildSystemPrompt(isCbt, isUpdate){
     let schema = '{"game":"","info":{"genre":"","dev":"","pub":"","platform":"","engine":"","release":"","note":""},"overview":"","features":[{"title":"","points":["",""]}],"video_trend":{"summary":"","points":["",""],"date":"YYYY/MM/DD"},"sns_trend":{"overall":"긍정적|부정적|혼재","quick_pos":["","",""],"quick_neg":["","",""],"detail":[{"label":"","sentiment":"positive|negative|mixed","desc":""}],"date":"YYYY/MM/DD"},"metrics":{"steamdb":"","sales":"","rank":"","date":"YYYY/MM/DD","note":""},"sources":[{"n":"","u":""}]';
-    schema = '{"game":"","info":{"genre":"","dev":"","pub":"","platform":"","engine":"","release":"","note":""},"overview":{"game_summary":"","positive_summary":"","negative_summary":"","service_mood":""},"features":[{"title":"","category":"in_game","points":["",""]}],"video_trend":{"summary":"","points":["",""],"official_pv":[{"title":"","channel":"","url":"https://www.youtube.com/..."}],"review_videos":[{"title":"","channel":"","url":"https://www.youtube.com/..."}],"date":"YYYY/MM/DD"},"sns_trend":{"overall":"긍정 우세|부정 우세|혼재","assessment":{"verdict":"긍정 우세|부정 우세|혼재","confidence":"높음|보통|낮음","basis":"공개 표본 수·공감 수·반복 언급을 근거로 한 한국어 문장"},"quick_pos":["",""],"quick_neg":["",""],"detail":[{"label":"","sentiment":"positive|negative|mixed","desc":""}],"date":"YYYY/MM/DD"},"metrics":{"items":[{"label":"","value":"","source":""}],"unavailable_items":[{"label":"","reason":""}],"date":"YYYY/MM/DD","note":""},"sources":[{"n":"","u":""}]';
+    schema = '{"game":"","info":{"genre":"","dev":"","pub":"","platform":"","engine":"","release":"","note":""},"launch_signal":{"phase":"출시 1일차|출시 후 N일|출시 전","data_sufficiency":"충분|제한적","attention":"낮음|보통|높음","community_posts":"확인된 공개 게시글 수 또는 확인 불가","youtube_videos":"확인된 관련 영상 수 또는 확인 불가","scope":"집계 사이트·기간","summary":"초기 동향을 설명하는 한국어 문장"},"overview":{"game_summary":"","positive_summary":"","negative_summary":"","service_mood":""},"features":[{"title":"","category":"in_game","points":["",""]}],"video_trend":{"summary":"","points":["",""],"official_pv":[{"title":"","channel":"","url":"https://www.youtube.com/..."}],"review_videos":[{"title":"","channel":"","url":"https://www.youtube.com/..."}],"date":"YYYY/MM/DD"},"sns_trend":{"overall":"긍정 우세|부정 우세|혼재","assessment":{"verdict":"긍정 우세|부정 우세|혼재","confidence":"높음|보통|낮음","decision_rule":"Steam 매우 긍정 이상|긍정 표본 과반|부정 표본 과반|과반 없음","summary":"전체 분위기와 소수 의견을 함께 설명하는 한국어 문장","basis":"Steam 평점·공개 표본 수·공감 수·반복 언급을 근거로 한 한국어 문장"},"quick_pos":["",""],"quick_neg":["",""],"detail":[{"label":"","sentiment":"positive|negative|mixed","desc":""}],"date":"YYYY/MM/DD"},"metrics":{"items":[{"label":"","value":"","source":""}],"unavailable_items":[{"label":"","reason":""}],"date":"YYYY/MM/DD","note":""},"sources":[{"n":"","u":""}]';
     if (isCbt){
       schema += ',"cbt_info":{"history":[{"name":"","period":"","region":"","note":""}],"pv_schedule":[{"title":"","date":"","note":""}]}';
     }
@@ -1018,7 +1038,10 @@ ${isUpdate ? `
 - 실제 게임을 플레이하지 않고도 이해할 수 있을 정도로 구체적으로 작성하세요.
 - features는 3~4개 항목, 각 항목마다 points 2~4개. 수치·경쟁작 비교·실제 조작 방식 포함.
 - sns_trend.detail은 4~6개 항목. label(압축 제목) + sentiment(positive/negative/mixed) + desc(2~3문장의 구체적 근거). 긍정/부정/복합을 골고루 포함하고, 복합적인 의견(장점과 단점이 함께 언급되는 반응)은 sentiment를 "mixed"로 표기하세요.
-- sns_trend.assessment는 반드시 작성하세요. assessment.verdict와 overall에는 "긍정 우세", "부정 우세", "혼재" 중 하나를 넣고, basis에는 수집한 공개 게시물·댓글·리뷰의 표본 수, 게시물 공감/추천 수, 반복 언급의 비중 중 실제로 확인 가능한 근거를 사용해 왜 그 판단인지 1~2문장으로 적으세요. 전체 여론으로 단정하지 말고 "수집한 공개 표본 기준"임을 명시하세요. 표본 수나 공감 수를 확인하지 못했으면 숫자를 지어내지 말고, 확인 가능한 반응의 방향성과 한계를 basis에 적으세요.
+- launch_signal은 반드시 작성하세요. 공식 출시일과 오늘 날짜를 비교해 phase를 정하고, 커뮤니티 게시글·유튜브 관련 영상은 실제로 확인·집계한 공개 표본의 수만 기재하세요. 정확한 전체 건수를 알 수 없으면 "확인 불가"로 쓰고 scope에 집계 사이트·기간을 적으세요. 숫자를 추측하지 마세요.
+- 출시 1일차에는 게임 소개를 길게 쓰지 마세요. launch_signal.summary에서 먼저 데이터량과 주목도를 판단하세요. 데이터가 제한적이고 활동량이 적다면 "출시 1일차로 데이터가 충분히 쌓이지 않았으며, 수집한 공개 표본에서 커뮤니티 게시글 X개·유튜브 관련 영상 Y개가 확인돼 초기 유저 반응 및 주목도가 낮다"는 취지로 구체적으로 적으세요. 활동량이 충분하면 1차 분위기 판정과 주요 긍정/부정 의견을 함께 적으세요. 확인하지 못한 X/Y는 숫자로 채우지 마세요.
+- sns_trend.assessment는 반드시 작성하세요. assessment.verdict와 overall에는 "긍정 우세", "부정 우세", "혼재" 중 하나를 넣고, decision_rule에는 실제로 적용한 1차 판정 기준을 적으세요. 판정은 아래 우선순위를 지키세요: (1) Steam 사용자 평가가 "매우 긍정적" 또는 "압도적으로 긍정적"이면, 다른 소수 불만이 있어도 "긍정 우세"로 판정합니다. (2) 해당 Steam 기준이 없으면, 실제로 수집·분류한 공개 표본에서 긍정 또는 부정이 전체의 과반(50% 초과)인지 판정합니다. (3) 어느 쪽도 과반이 아닐 때만 "혼재"를 사용합니다. 긍정·부정 의견을 모두 찾았다는 이유만으로 혼재로 판정하지 마세요.
+- assessment.summary는 판정 문장입니다. 긍정 우세일 때는 "전체 유저 동향은 긍정적이나, [구체적 불만]에 대한 불만도 일부 있음"의 취지로 작성하세요. 부정 우세일 때는 "[사이트]에서 [구체적 불만]이 주로 나오며 전체 분위기도 부정에 가까움. 다만 [구체적 장점]을 호평하는 유저도 있어 향후 동향을 지켜볼 필요가 있음"의 취지로 작성하세요. basis에는 Steam 평가·리뷰 수 또는 공개 표본의 긍정/부정/복합 수, 공감·추천 수, 반복 언급을 실제로 확인한 범위에서 적고 반드시 "수집한 공개 표본 기준"임을 밝혀 과반 판정 이유를 전달하세요. 표본 수나 공감 수를 지어내지 마세요.
 - video_trend.points에는 영상/스트리밍에서 관찰되는 구체적 경향 2~3개.
 - video_trend.official_pv에는 공식 유튜브 채널이 올린 PV·트레일러 링크를 1~2개 기재하세요. video_trend.review_videos에는 실제 리뷰·분석·첫인상 영상의 유튜브 링크를 2~3개 기재하세요. 각 항목은 title, channel, url을 포함하며 url에는 실제 https YouTube 영상 링크만 넣으세요. 검색 결과에서 실제 링크를 확인하지 못한 영상은 절대 추측하거나 채우지 마세요.
 
@@ -1035,15 +1058,13 @@ ${schema}
 - metrics.items must use Korean labels only and must be in this order when data is applicable: "Steam 매출 순위", "Steam 24시간 최고 동시 접속자 수", "판매량·다운로드·사전 예약자 수", "앱 마켓 순위". For Steam player data, use SteamDB's "24-hour peak" only; never use the current player count. Each value must be a very short number-focused statement only (for example: "1위", "10만 명", "사전 예약자 1,600만 명"). Put the source name, page, and date or URL in source, which is shown on the second line. Do not put English labels or explanations in value and do not invent numbers.
 - Never write "Not available", "N/A", "확인 필요", or similar placeholders in metrics.items. If an applicable metric cannot be verified, omit it from items and add it to metrics.unavailable_items using its Korean label and a concise Korean reason, for example {"label":"Steam 매출 순위","reason":"출시 전이라 Steam 차트 데이터가 없어"}. The report will show a bottom note explaining that those items were excluded.
 - For video_trend.official_pv, provide 1-2 verified HTTPS YouTube links from the official publisher/developer/game channel only. For video_trend.review_videos, provide 2-3 verified HTTPS YouTube links to independent review, analysis, or first-impression videos; do not use reuploads, shorts, search pages, channel pages, or fabricated URLs. Use an empty array when a verified link is unavailable.
-- sns_trend.overall and sns_trend.assessment.verdict must be exactly one of "긍정 우세", "부정 우세", or "혼재". Assess the direction from the collected public sample by weighing verified post/review counts, likes/upvotes, comments, and repeated themes when those signals are available. assessment.basis must state the evidence and its limits in Korean; never fabricate counts, likes, or engagement.
+- sns_trend.overall and sns_trend.assessment.verdict must be exactly one of "긍정 우세", "부정 우세", or "혼재". This is a first-pass majority decision, not a requirement to balance positive and negative examples. If Steam reviews are "Very Positive" or "Overwhelmingly Positive", set "긍정 우세". Otherwise use a verified public-sample majority greater than 50%; use "혼재" only when neither side has a majority. assessment.summary must state the overall direction and any minority caveat, while assessment.basis explains the rule and evidence used. Never fabricate review counts, post counts, likes, or engagement.
+- launch_signal must describe the launch phase, evidence sufficiency, observed community-post and YouTube-video activity, and an evidence-limited early trend summary. On release day, prioritize this signal over a generic game introduction. If observed activity is low or evidence is insufficient, explicitly say so rather than inferring a broad player sentiment.
 - features must contain in-game playable systems only: combat, characters, progression, exploration, collection, multiplayer, controls, or other gameplay mechanics. Never include CBT schedules, login/invitation issues, beta data wipes, rewards, compensation, events, operations, monetization, or retention design in features.
 - A favorable or unfavorable player reaction to service/reward/compensation/retention design belongs in sns_trend.detail with the correct sentiment. Factual test schedules and official operations belong in cbt_info, not features.
 - All fields must be Korean except proper nouns and source titles.`;
   }
 
-  // Claude가 JSON 문자열 값 안에 실제 줄바꿈/탭 등을 이스케이프 없이 그대로 넣어 보내는 경우가 있어
-  // (예: "desc":"첫 문장\n둘째 문장") JSON.parse가 "Bad control character" 오류로 실패한다.
-  // 문자열(따옴표) 내부에 있는 제어문자만 찾아 \n, \t 등으로 안전하게 이스케이프 처리한다.
   function sanitizeJsonControlChars(str){
     let out = '';
     let inString = false;
@@ -1076,7 +1097,6 @@ ${schema}
     try{
       return JSON.parse(candidate);
     }catch(e){
-      // 제어문자 문제로 실패했다면 보정 후 한 번 더 시도
       return JSON.parse(sanitizeJsonControlChars(candidate));
     }
   }

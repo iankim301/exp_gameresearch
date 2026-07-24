@@ -554,6 +554,14 @@
     const kind = sentimentClass(value);
     return kind === 'positive' ? '긍정 우세' : kind === 'negative' ? '부정 우세' : '혼재';
   }
+  function opinionCountLabel(value){
+    const n = Number(value);
+    return Number.isInteger(n) && n >= 0 ? `${n}건` : '확인 불가';
+  }
+  function opinionSampleTotal(counts){
+    const values = ['positive', 'negative', 'mixed'].map(key => Number(counts?.[key]));
+    return values.every(n => Number.isInteger(n) && n >= 0) ? values.reduce((sum, n) => sum + n, 0) : null;
+  }
 
   // ---------- storage ----------
   async function loadArchive(){
@@ -647,6 +655,8 @@
     const officialPvLinks = videoLinksHtml(video.official_pv);
     const reviewVideoLinks = videoLinksHtml(video.review_videos);
     const assessment = sns.assessment || {};
+    const sampleCounts = assessment.sample_counts || {};
+    const totalSampleCount = opinionSampleTotal(sampleCounts);
     const sentimentValue = assessment.verdict || sns.overall;
     const sentimentKind = sentimentClass(sentimentValue);
     const sentimentVerdict = sentimentLabel(sentimentValue);
@@ -744,6 +754,7 @@
         <p class="section-label">${isUpdateReport ? '업데이트·캐릭터 관련 SNS · 커뮤니티 반응' : 'SNS · 커뮤니티 반응'}</p>
         <div class="sentiment-assessment ${sentimentKind}">
           <div class="sentiment-assessment-head"><span class="overall-tag ${sentimentKind}">${escapeHtml(sentimentVerdict)}</span><b>1차 분위기 판정</b>${assessment.decision_rule ? `<span class="date-chip">${escapeHtml(assessment.decision_rule)}</span>` : ''}${assessment.confidence ? `<span class="date-chip">신뢰도 ${escapeHtml(assessment.confidence)}</span>` : ''}</div>
+          <div class="launch-signal-meta"><span>긍정 의견 ${escapeHtml(opinionCountLabel(sampleCounts.positive))}</span><span>부정 의견 ${escapeHtml(opinionCountLabel(sampleCounts.negative))}</span><span>총 표본 ${totalSampleCount === null ? '확인 불가' : `${totalSampleCount} / 50건`}</span><span>최대: 총 50건</span>${sampleCounts.scope ? `<span>${escapeHtml(sampleCounts.scope)}</span>` : ''}</div>
           <p>${escapeHtml(assessment.summary) || '수집한 공개 반응 표본을 기준으로 판단한 결과입니다. 세부 근거는 아래 반응 항목을 확인해 주세요.'}</p>
           ${assessment.basis ? `<p>근거: ${escapeHtml(assessment.basis)}</p>` : ''}
         </div>
@@ -998,6 +1009,10 @@
   function buildSystemPrompt(isCbt, isUpdate){
     let schema = '{"game":"","info":{"genre":"","dev":"","pub":"","platform":"","engine":"","release":"","note":""},"overview":"","features":[{"title":"","points":["",""]}],"video_trend":{"summary":"","points":["",""],"date":"YYYY/MM/DD"},"sns_trend":{"overall":"긍정적|부정적|혼재","quick_pos":["","",""],"quick_neg":["","",""],"detail":[{"label":"","sentiment":"positive|negative|mixed","desc":""}],"date":"YYYY/MM/DD"},"metrics":{"steamdb":"","sales":"","rank":"","date":"YYYY/MM/DD","note":""},"sources":[{"n":"","u":""}]';
     schema = '{"game":"","info":{"genre":"","dev":"","pub":"","platform":"","engine":"","release":"","note":""},"launch_signal":{"phase":"출시 1일차|출시 후 N일|출시 전","data_sufficiency":"충분|제한적","attention":"낮음|보통|높음","community_posts":"확인된 공개 게시글 수 또는 확인 불가","youtube_videos":"확인된 관련 영상 수 또는 확인 불가","scope":"집계 사이트·기간","summary":"초기 동향을 설명하는 한국어 문장"},"overview":{"game_summary":"","positive_summary":"","negative_summary":"","service_mood":""},"features":[{"title":"","category":"in_game","points":["",""]}],"video_trend":{"summary":"","points":["",""],"official_pv":[{"title":"","channel":"","url":"https://www.youtube.com/..."}],"review_videos":[{"title":"","channel":"","url":"https://www.youtube.com/..."}],"date":"YYYY/MM/DD"},"sns_trend":{"overall":"긍정 우세|부정 우세|혼재","assessment":{"verdict":"긍정 우세|부정 우세|혼재","confidence":"높음|보통|낮음","decision_rule":"Steam 매우 긍정 이상|긍정 표본 과반|부정 표본 과반|과반 없음","summary":"전체 분위기와 소수 의견을 함께 설명하는 한국어 문장","basis":"Steam 평점·공개 표본 수·공감 수·반복 언급을 근거로 한 한국어 문장"},"quick_pos":["",""],"quick_neg":["",""],"detail":[{"label":"","sentiment":"positive|negative|mixed","desc":""}],"date":"YYYY/MM/DD"},"metrics":{"items":[{"label":"","value":"","source":""}],"unavailable_items":[{"label":"","reason":""}],"date":"YYYY/MM/DD","note":""},"sources":[{"n":"","u":""}]';
+    schema = schema.replace(
+      '"basis":"Steam 평점·공개 표본 수·공감 수·반복 언급을 근거로 한 한국어 문장"}',
+      '"basis":"Steam 평점·공개 표본 수·공감 수·반복 언급을 근거로 한 한국어 문장","sample_counts":{"positive":0,"negative":0,"mixed":0,"scope":"실제 집계한 유저 반응 출처·기간"}}'
+    );
     if (isCbt){
       schema += ',"cbt_info":{"history":[{"name":"","period":"","region":"","note":""}],"pv_schedule":[{"title":"","date":"","note":""}]}';
     }
@@ -1038,6 +1053,9 @@ ${isUpdate ? `
 - 실제 게임을 플레이하지 않고도 이해할 수 있을 정도로 구체적으로 작성하세요.
 - features는 3~4개 항목, 각 항목마다 points 2~4개. 수치·경쟁작 비교·실제 조작 방식 포함.
 - sns_trend.detail은 4~6개 항목. label(압축 제목) + sentiment(positive/negative/mixed) + desc(2~3문장의 구체적 근거). 긍정/부정/복합을 골고루 포함하고, 복합적인 의견(장점과 단점이 함께 언급되는 반응)은 sentiment를 "mixed"로 표기하세요.
+- 웹진·게임 전문 매체·뉴스 기사·보도자료의 평론/호평/비평은 긍정·부정 유저 동향 표본에 포함하지 마세요. 이 자료는 출시일·개발사·기능 등 사실 확인과 sources에만 사용할 수 있으며, sns_trend.overall·assessment·quick_pos·quick_neg·detail의 감성 근거로 쓰면 안 됩니다.
+- 유저 의견 표본은 Steam의 실제 사용자 평가/리뷰, 유저가 작성한 커뮤니티 게시글·댓글, 사용자 리뷰, 영상 댓글처럼 개인 유저가 직접 남긴 발화만 사용하세요. 공식 계정, 인플루언서 광고, 언론사/웹진 기사는 제외하세요.
+- 긍정·부정·복합을 합쳐 최대 50개의 서로 다른 확인 가능한 유저 의견만 조사하세요. 50건보다 많은 자료를 찾더라도 대표성이 있는 실제 유저 의견 50건까지만 분류하고, assessment.sample_counts.positive/negative/mixed의 합계는 절대 50을 넘기지 마세요. 각 값에는 실제로 읽고 분류한 개수만 0 이상의 정수로 넣고, 자료가 50건 미만이면 추측으로 채우지 말고 실제 개수를 적으세요. sample_counts.scope에는 실제 집계 사이트와 기간을 적으세요.
 - launch_signal은 반드시 작성하세요. 공식 출시일과 오늘 날짜를 비교해 phase를 정하고, 커뮤니티 게시글·유튜브 관련 영상은 실제로 확인·집계한 공개 표본의 수만 기재하세요. 정확한 전체 건수를 알 수 없으면 "확인 불가"로 쓰고 scope에 집계 사이트·기간을 적으세요. 숫자를 추측하지 마세요.
 - 출시 1일차에는 게임 소개를 길게 쓰지 마세요. launch_signal.summary에서 먼저 데이터량과 주목도를 판단하세요. 데이터가 제한적이고 활동량이 적다면 "출시 1일차로 데이터가 충분히 쌓이지 않았으며, 수집한 공개 표본에서 커뮤니티 게시글 X개·유튜브 관련 영상 Y개가 확인돼 초기 유저 반응 및 주목도가 낮다"는 취지로 구체적으로 적으세요. 활동량이 충분하면 1차 분위기 판정과 주요 긍정/부정 의견을 함께 적으세요. 확인하지 못한 X/Y는 숫자로 채우지 마세요.
 - sns_trend.assessment는 반드시 작성하세요. assessment.verdict와 overall에는 "긍정 우세", "부정 우세", "혼재" 중 하나를 넣고, decision_rule에는 실제로 적용한 1차 판정 기준을 적으세요. 판정은 아래 우선순위를 지키세요: (1) Steam 사용자 평가가 "매우 긍정적" 또는 "압도적으로 긍정적"이면, 다른 소수 불만이 있어도 "긍정 우세"로 판정합니다. (2) 해당 Steam 기준이 없으면, 실제로 수집·분류한 공개 표본에서 긍정 또는 부정이 전체의 과반(50% 초과)인지 판정합니다. (3) 어느 쪽도 과반이 아닐 때만 "혼재"를 사용합니다. 긍정·부정 의견을 모두 찾았다는 이유만으로 혼재로 판정하지 마세요.
@@ -1058,7 +1076,7 @@ ${schema}
 - metrics.items must use Korean labels only and must be in this order when data is applicable: "Steam 매출 순위", "Steam 24시간 최고 동시 접속자 수", "판매량·다운로드·사전 예약자 수", "앱 마켓 순위". For Steam player data, use SteamDB's "24-hour peak" only; never use the current player count. Each value must be a very short number-focused statement only (for example: "1위", "10만 명", "사전 예약자 1,600만 명"). Put the source name, page, and date or URL in source, which is shown on the second line. Do not put English labels or explanations in value and do not invent numbers.
 - Never write "Not available", "N/A", "확인 필요", or similar placeholders in metrics.items. If an applicable metric cannot be verified, omit it from items and add it to metrics.unavailable_items using its Korean label and a concise Korean reason, for example {"label":"Steam 매출 순위","reason":"출시 전이라 Steam 차트 데이터가 없어"}. The report will show a bottom note explaining that those items were excluded.
 - For video_trend.official_pv, provide 1-2 verified HTTPS YouTube links from the official publisher/developer/game channel only. For video_trend.review_videos, provide 2-3 verified HTTPS YouTube links to independent review, analysis, or first-impression videos; do not use reuploads, shorts, search pages, channel pages, or fabricated URLs. Use an empty array when a verified link is unavailable.
-- sns_trend.overall and sns_trend.assessment.verdict must be exactly one of "긍정 우세", "부정 우세", or "혼재". This is a first-pass majority decision, not a requirement to balance positive and negative examples. If Steam reviews are "Very Positive" or "Overwhelmingly Positive", set "긍정 우세". Otherwise use a verified public-sample majority greater than 50%; use "혼재" only when neither side has a majority. assessment.summary must state the overall direction and any minority caveat, while assessment.basis explains the rule and evidence used. Never fabricate review counts, post counts, likes, or engagement.
+- sns_trend.overall and sns_trend.assessment.verdict must be exactly one of "긍정 우세", "부정 우세", or "혼재". This is a first-pass majority decision, not a requirement to balance positive and negative examples. If Steam reviews are "Very Positive" or "Overwhelmingly Positive", set "긍정 우세". Otherwise use a verified public-sample majority greater than 50%; use "혼재" only when neither side has a majority. assessment.summary must state the overall direction and any minority caveat, while assessment.basis explains the rule and evidence used. Count only direct user-authored feedback: Steam user reviews, user community posts/comments, user reviews, and video comments. Editorials, webzine/news articles, press releases, official accounts, and sponsored influencer content may be used for factual sources but never for sentiment counts or sentiment evidence. Inspect and classify at most 50 distinct user opinions in total. assessment.sample_counts.positive, .negative, and .mixed must be non-negative integers representing only the observations actually inspected, and their sum must never exceed 50. If fewer than 50 observations are available, report the actual count without estimates. Never fabricate review counts, post counts, likes, or engagement.
 - launch_signal must describe the launch phase, evidence sufficiency, observed community-post and YouTube-video activity, and an evidence-limited early trend summary. On release day, prioritize this signal over a generic game introduction. If observed activity is low or evidence is insufficient, explicitly say so rather than inferring a broad player sentiment.
 - features must contain in-game playable systems only: combat, characters, progression, exploration, collection, multiplayer, controls, or other gameplay mechanics. Never include CBT schedules, login/invitation issues, beta data wipes, rewards, compensation, events, operations, monetization, or retention design in features.
 - A favorable or unfavorable player reaction to service/reward/compensation/retention design belongs in sns_trend.detail with the correct sentiment. Factual test schedules and official operations belong in cbt_info, not features.

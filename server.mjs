@@ -17,6 +17,15 @@ const isAuthorized = (req, res) => {
   return false;
 };
 
+// Claude가 web_search 도구를 쓰면 검색 결과를 인용하며 문장 안에
+// <cite index="...">...</cite> 같은 인용 태그를 그대로 끼워 넣는 경우가 있다.
+// 최종 결과에는 자연어 문장만 남기고 이런 태그는 제거한다. (인용 태그 안의 실제 문장 내용은 보존)
+function stripCitationTags(text) {
+  return text
+    .replace(/<\/?cite[^>]*>/gi, '')   // 인용 태그 제거
+    .replace(/[ \t]{2,}/g, ' ');       // 태그가 사라진 자리에 남는 연속 공백을 하나로 정리 (줄바꿈은 JSON 구조상 보존)
+}
+
 // Claude(Anthropic) Messages API 호출.
 // 웹 검색 도구를 쓰면 조사 도중 응답이 "pause_turn"으로 잠시 멈추고 이어서 요청해주길 기다리는
 // 경우가 있어서, 조사가 완전히 끝날 때까지 최대 MAX_ROUNDS번 자동으로 이어서 요청한다.
@@ -96,7 +105,7 @@ createServer(async (req, res) => {
     }, 15000);
 
     try {
-      const text = await callClaude(instructions, input);
+      const text = stripCitationTags(await callClaude(instructions, input));
       clearInterval(heartbeat);
       if (!text || !text.trim()) { res.end(JSON.stringify({ error: 'Claude returned no text.' })); return; }
       res.end(JSON.stringify({ text }));

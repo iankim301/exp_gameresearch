@@ -1025,6 +1025,7 @@
           <button class="action-btn" id="editBtn">✏️ 내용 수정</button>
           <button class="action-btn" id="downloadJsonBtn">JSON 내보내기</button>
           <button class="action-btn" id="downloadPdfBtn">PDF 다운로드</button>
+          <button class="action-btn" id="downloadMdBtn">MD 보고서 생성</button>
         </div>
       </div>
       <div id="editBanner" class="edit-banner hidden">✏️ 수정 모드입니다. 본문을 클릭해 편집하고, SNS 반응 항목은 좌측 ⠿ 핸들을 드래그해 순서를 바꿀 수 있습니다. [수정 완료]를 누르면 팀 아카이브와 JSON에 반영됩니다.</div>
@@ -1063,6 +1064,7 @@
 
     document.getElementById('downloadJsonBtn').addEventListener('click', () => downloadJson(report));
     document.getElementById('downloadPdfBtn').addEventListener('click', () => downloadPdf(report));
+    document.getElementById('downloadMdBtn').addEventListener('click', () => downloadMarkdown(report));
     const shareBtn = document.createElement('button');
     shareBtn.className = 'action-btn';
     shareBtn.textContent = '웹 공유용 HTML';
@@ -1381,6 +1383,226 @@ ${schema}
     const a = document.createElement('a');
     a.href = url;
     a.download = `${slugify(report.game)}_동향보고서_공유용.html`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  // ---------- Markdown export ----------
+  function mdEscape(s){
+    if (s === undefined || s === null) return '';
+    return String(s).replace(/\|/g, '\\|');
+  }
+  function mdLine(v, fallback){
+    const s = String(v ?? '').trim();
+    return s ? mdEscape(s) : (fallback || '추가 확인 필요');
+  }
+  function mdList(items){
+    return (items || []).filter(Boolean).map(p => `- ${mdEscape(p)}`).join('\n');
+  }
+  function mdVideoLinks(items){
+    return (Array.isArray(items) ? items : []).map(item => {
+      const url = safeYouTubeUrl(item?.url);
+      if (!url) return '';
+      const title = String(item?.title || 'YouTube 영상').trim();
+      const channel = String(item?.channel || '').trim();
+      return `- [${mdEscape(title)}${channel ? ` · ${mdEscape(channel)}` : ''}](${url})`;
+    }).filter(Boolean).join('\n');
+  }
+
+  function buildReportMarkdown(report){
+    const info = report.info || {};
+    const sns = report.sns_trend || {};
+    const video = report.video_trend || {};
+    const cbt = report.cbt_info;
+    const sources = report.sources || [];
+    const features = (report.features || []).filter(f => f.category !== 'service_design' && f.category !== 'operations');
+    const overview = typeof report.overview === 'object' && report.overview !== null
+      ? report.overview
+      : { game_summary: report.overview || '', positive_summary: (sns.quick_pos || []).join(' · '), negative_summary: (sns.quick_neg || []).join(' · '), service_mood: sns.overall ? `전반 분위기: ${sns.overall}` : '' };
+    const metrics = report.metrics || {};
+    const metricDisplay = metricDisplayData(metrics);
+    const detail = sortDetail(sns.detail);
+    const assessment = sns.assessment || {};
+    const sampleCounts = assessment.sample_counts || {};
+    const totalSampleCount = opinionSampleTotal(sampleCounts);
+    const assessmentEvidence = Array.isArray(assessment.evidence) ? assessment.evidence.slice(0, 4) : [];
+    const steamRating = assessment.steam_rating || {};
+    const userTrend = assessment.user_trend || {};
+    const topSteamReviews = steamTopReviews(sns.steam_top_reviews);
+    const steamReviewNote = String(sns.steam_review_note || '').trim();
+    const sentimentValue = assessment.verdict || sns.overall;
+    const sentimentVerdict = sentimentLabel(sentimentValue);
+    const isUpdateReport = report.report_mode === 'update';
+    const updateTarget = report.update_target || report.stage_label || '특정 업데이트/캐릭터';
+    const updateDate = report.update_date || '';
+    const launchSignal = report.launch_signal || {};
+    const hasLaunchSignal = !isUpdateReport && (launchSignal.summary || launchSignal.phase || launchSignal.community_posts || launchSignal.youtube_videos);
+
+    const lines = [];
+    lines.push(`# ${mdLine(report.game, '게임 동향 보고서')}`);
+    const subMeta = [info.dev, info.pub, report.stage_label].filter(Boolean).join(' · ');
+    if (subMeta) lines.push(`_${mdEscape(subMeta)}_`);
+    lines.push(`\n생성일: ${mdLine(report.generated_at || todayStr())}\n`);
+
+    if (isUpdateReport){
+      lines.push(`## 조사 범위`);
+      lines.push(`| 항목 | 내용 |`);
+      lines.push(`|---|---|`);
+      lines.push(`| 대상 | ${mdLine(updateTarget)} |`);
+      lines.push(`| 업데이트/출시일 | ${mdLine(updateDate)} |`);
+      lines.push(`| 조사 원칙 | 해당 대상 관련 내용만 수집 |`);
+      lines.push('');
+    } else {
+      lines.push(`## 기본 정보`);
+      lines.push(`| 항목 | 내용 |`);
+      lines.push(`|---|---|`);
+      lines.push(`| 장르 | ${mdLine(info.genre)} |`);
+      lines.push(`| 개발사 | ${mdLine(info.dev)} |`);
+      lines.push(`| 유통사 | ${mdLine(info.pub)} |`);
+      lines.push(`| 플랫폼 | ${mdLine(info.platform)} |`);
+      lines.push(`| 엔진 | ${mdLine(info.engine)} |`);
+      lines.push(`| 출시/테스트 일정 | ${mdLine(info.release)} |`);
+      lines.push('');
+      if (info.note) lines.push(`> ${mdEscape(info.note)}\n`);
+    }
+
+    if (hasLaunchSignal){
+      const tags = [launchSignal.phase, launchSignal.attention ? `주목도 ${launchSignal.attention}` : '', launchSignal.data_sufficiency ? `데이터 ${launchSignal.data_sufficiency}` : ''].filter(Boolean).join(' · ');
+      lines.push(`## 초기 출시 동향${tags ? ` (${mdEscape(tags)})` : ''}`);
+      lines.push(mdLine(launchSignal.summary, '초기 동향 데이터를 수집 중입니다.'));
+      const metaBits = [
+        launchSignal.community_posts ? `커뮤니티 게시글 ${launchSignal.community_posts}` : '',
+        launchSignal.youtube_videos ? `유튜브 관련 영상 ${launchSignal.youtube_videos}` : '',
+        launchSignal.scope || ''
+      ].filter(Boolean);
+      if (metaBits.length) lines.push(`\n${metaBits.map(mdEscape).join(' · ')}`);
+      lines.push('');
+    }
+
+    lines.push(`## ${isUpdateReport ? '업데이트·캐릭터 출시 동향' : '게임 소개 및 출시 동향'}`);
+    lines.push(`**${isUpdateReport ? '대상 소개 및 출시 상황' : '게임 소개'}**  \n${mdLine(overview.game_summary)}\n`);
+    lines.push(`**긍정 반응 요약**  \n${mdLine(overview.positive_summary)}\n`);
+    lines.push(`**부정·우려 반응 요약**  \n${mdLine(overview.negative_summary)}\n`);
+    lines.push(`**출시 동향 종합**  \n${mdLine(overview.service_mood)}\n`);
+
+    if (!isUpdateReport){
+      lines.push(`## 정량 지표`);
+      if (metricDisplay.items.length){
+        lines.push(`| 지표 | 값 | 출처 |`);
+        lines.push(`|---|---|---|`);
+        metricDisplay.items.forEach(item => {
+          lines.push(`| ${mdEscape(item.label)} | ${mdEscape(item.value)} | ${mdEscape(item.source || '-')} |`);
+        });
+        lines.push('');
+      }
+      if (metricDisplay.note) lines.push(`> ${mdEscape(metricDisplay.note)}\n`);
+    }
+
+    if (cbt && !isUpdateReport){
+      lines.push(`## CBT 정보`);
+      lines.push(`### 역대 테스트 이력`);
+      lines.push(`| 테스트명 | 기간 | 지역/플랫폼 | 비고 |`);
+      lines.push(`|---|---|---|---|`);
+      (cbt.history || []).forEach(h => lines.push(`| ${mdEscape(h.name)} | ${mdEscape(h.period)} | ${mdEscape(h.region)} | ${mdEscape(h.note)} |`));
+      lines.push('');
+      lines.push(`### 공식 PV / 발표 일정`);
+      lines.push(`| 제목 | 공개일 | 비고 |`);
+      lines.push(`|---|---|---|`);
+      (cbt.pv_schedule || []).forEach(p => lines.push(`| ${mdEscape(p.title)} | ${mdEscape(p.date)} | ${mdEscape(p.note)} |`));
+      lines.push('');
+    }
+
+    lines.push(`## ${isUpdateReport ? '업데이트·캐릭터 핵심 내용' : '게임 시스템 소개'}`);
+    if (features.length){
+      features.forEach((f, i) => {
+        lines.push(`### ${String(i + 1).padStart(2, '0')}. ${mdLine(f.title)}`);
+        lines.push(mdList(f.points));
+        lines.push('');
+      });
+    } else {
+      lines.push('추가 확인 필요\n');
+    }
+
+    lines.push(`## ${isUpdateReport ? '업데이트·캐릭터 관련 영상 반응' : '영상 콘텐츠 반응 (유튜브 등)'}`);
+    lines.push(mdLine(video.summary));
+    if ((video.points || []).length) lines.push(`\n${mdList(video.points)}`);
+    lines.push(`\n_기준일: ${mdLine(video.date, '날짜 미상')}_`);
+    const officialPvMd = mdVideoLinks(video.official_pv);
+    const reviewVideoMd = mdVideoLinks(video.review_videos);
+    if (officialPvMd) lines.push(`\n**공식 PV · 트레일러**\n${officialPvMd}`);
+    if (reviewVideoMd) lines.push(`\n**리뷰 · 분석 영상**\n${reviewVideoMd}`);
+    lines.push('');
+
+    lines.push(`## ${isUpdateReport ? '업데이트·캐릭터 관련 SNS · 커뮤니티 반응' : 'SNS · 커뮤니티 반응'}`);
+    const judgeTags = [
+      `1차 분위기 판정: ${sentimentVerdict}`,
+      assessment.decision_rule ? `기준: ${assessment.decision_rule}` : '',
+      assessment.confidence ? `신뢰도 ${assessment.confidence}` : ''
+    ].filter(Boolean);
+    lines.push(`**${judgeTags.map(mdEscape).join(' · ')}**\n`);
+    const sampleBits = [
+      `긍정 의견 ${opinionCountLabel(sampleCounts.positive)}`,
+      `부정 의견 ${opinionCountLabel(sampleCounts.negative)}`,
+      `총 표본 ${totalSampleCount === null ? '확인 불가' : `${totalSampleCount} / 50건`}`,
+      steamRating.status ? `Steam 평가: ${steamRating.status}` : '',
+      userTrend.verdict ? `유저 동향: ${userTrend.verdict}` : '',
+      sampleCounts.scope || ''
+    ].filter(Boolean);
+    lines.push(`${sampleBits.map(mdEscape).join(' · ')}\n`);
+    lines.push(`${mdLine(assessment.summary, '수집한 공개 반응 표본을 기준으로 판단한 결과입니다. 세부 근거는 아래 반응 항목을 확인해 주세요.')}\n`);
+    if (assessment.basis) lines.push(`근거: ${mdEscape(assessment.basis)}\n`);
+    if (assessmentEvidence.length){
+      lines.push(`**판정 근거**`);
+      assessmentEvidence.forEach(e => {
+        const bits = [e.source || '판정 증거', e.reliability ? `신뢰도 ${e.reliability}` : '', e.direction ? sentimentLabel(e.direction) : ''].filter(Boolean).join(' · ');
+        lines.push(`- ${mdEscape(bits)}${e.detail ? ` — ${mdEscape(e.detail)}` : ''}`);
+      });
+      lines.push('');
+    }
+    if (topSteamReviews.length || steamReviewNote){
+      lines.push(`**Steam 추천 수 상위 유저 리뷰**`);
+      topSteamReviews.forEach(review => {
+        const label = sentimentClass(review.sentiment) === 'positive' ? '긍정' : '부정';
+        const helpful = helpfulReviewCount(review.helpful_count);
+        const playtime = String(review.playtime || '').trim();
+        lines.push(`- ${label} 주요 의견은 "${mdEscape(review.summary)}"이다. _(추천 ${helpful}명${playtime ? ` · 플레이 ${mdEscape(playtime)}` : ''})_`);
+      });
+      if (steamReviewNote) lines.push(`\n> ${mdEscape(steamReviewNote)}`);
+      lines.push('');
+    }
+    const quickTags = [...(sns.quick_pos || []).map(p => `▲ ${p}`), ...(sns.quick_neg || []).map(n => `▼ ${n}`)];
+    if (quickTags.length) lines.push(`${quickTags.map(mdEscape).join('  ')}\n`);
+    if (detail.length){
+      detail.forEach(d => {
+        const sent = SENT_ORDER.hasOwnProperty(d.sentiment) ? d.sentiment : 'positive';
+        lines.push(`- ${SENT_MARK[sent]} **${mdEscape(d.label)}** — ${mdEscape(d.desc)}`);
+      });
+      lines.push('');
+    }
+    lines.push(`_기준일: ${mdLine(sns.date, '날짜 미상')}_\n`);
+
+    if (sources.length){
+      lines.push(`## 참고 자료`);
+      sources.forEach(s => lines.push(`- [${mdEscape(s.n || s.u)}](${s.u})`));
+      lines.push('');
+    }
+
+    return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim() + '\n';
+  }
+
+  function downloadMarkdown(report){
+    if (isEditing){
+      alert('먼저 [수정 완료]를 눌러 편집을 마친 뒤 MD 보고서를 생성해 주세요.');
+      return;
+    }
+    const md = buildReportMarkdown(report);
+    const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${slugify(report.game)}_동향보고서.md`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);

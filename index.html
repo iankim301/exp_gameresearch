@@ -215,6 +215,8 @@
   .overview-list{ margin:0; padding-left:19px; }
   .overview-list li{ margin-bottom:7px; padding-left:2px; }
   .overview-list li:last-child{ margin-bottom:0; }
+  .overview-list li::marker{ color:var(--accent); font-size:1.05em; }
+  .metric-note .overview-list{ margin-top:6px; color:inherit; line-height:1.7; }
   @media (max-width:600px){
     .report-tab{ flex:1 1 calc(50% - 7px); }
     .game-info-table th{ width:92px; }
@@ -265,6 +267,9 @@
   .launch-signal-head{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
   .launch-signal-head b{ font-size:13.5px; }
   .launch-signal p{ margin:7px 0 0; color:var(--mute); font-size:12.5px; }
+  .launch-signal-body{ margin-top:10px; color:var(--mute); font-size:12.5px; line-height:1.75; }
+  .launch-signal-body .overview-list{ padding-left:20px; }
+  .launch-signal-body .overview-list li{ margin-bottom:9px; }
   .launch-signal-meta{ display:flex; flex-wrap:wrap; gap:6px; margin-top:9px; }
   .launch-signal-meta span{ padding:3px 7px; border-radius:5px; background:var(--surface); border:1px solid var(--border); color:var(--mute); font-family:var(--font-mono); font-size:11px; }
 
@@ -911,7 +916,8 @@
       .map(value => String(value || '').trim())
       .filter(Boolean)
       .join('\n')
-      .replace(/([.!?])\s+/g, '$1\n');
+      .replace(/([.!?])\s+/g, '$1\n')
+      .replace(/\s+(?=(?:첫째|둘째|셋째|넷째|다섯째|마지막으로|또한|한편)[,\s])/g, '\n');
     const items = normalized
       .split(/\n+/)
       .map(item => item.replace(/^[\s•·*\-–—]+/, '').trim())
@@ -933,6 +939,19 @@
     };
     buttons.forEach(button => button.addEventListener('click', () => activate(button.dataset.tabTarget)));
     activate(buttons.find(button => button.classList.contains('on'))?.dataset.tabTarget || buttons[0].dataset.tabTarget);
+  }
+  function enhanceNarrativeLists(reportBody){
+    reportBody.querySelectorAll('.launch-signal > p, .game-info-table + .metric-note').forEach(element => {
+      if (element.querySelector('ul')) return;
+      const text = element.textContent.trim();
+      if (!text) return;
+      if (element.matches('.launch-signal > p')){
+        const replacement = document.createElement('div');
+        replacement.className = 'launch-signal-body';
+        replacement.innerHTML = summaryListHtml(text);
+        element.replaceWith(replacement);
+      } else element.innerHTML = summaryListHtml(text);
+    });
   }
   function setProgress(pct, phaseLabel){
     progressFill.style.width = Math.max(0, Math.min(100, pct)) + '%';
@@ -1148,7 +1167,7 @@
           <tr><th>플랫폼</th><td>${escapeHtml(info.platform) || '추가 확인 필요'}</td></tr>
           <tr><th>엔진</th><td>${escapeHtml(info.engine) || '추가 확인 필요'}</td></tr>
         </table>
-        ${info.note ? `<div class="metric-note">${escapeHtml(info.note)}</div>` : ''}
+        ${info.note ? `<div class="metric-note">${summaryListHtml(info.note)}</div>` : ''}
       </div>
 
       <div class="section">
@@ -1170,7 +1189,7 @@
       ${hasLaunchSignal ? `
       <div class="launch-signal">
         <div class="launch-signal-head"><b>초기 출시 동향</b>${launchSignal.phase ? `<span class="date-chip">${escapeHtml(launchSignal.phase)}</span>` : ''}${launchSignal.attention ? `<span class="date-chip">주목도 ${escapeHtml(launchSignal.attention)}</span>` : ''}${launchSignal.data_sufficiency ? `<span class="date-chip">데이터 ${escapeHtml(launchSignal.data_sufficiency)}</span>` : ''}</div>
-        <p>${escapeHtml(launchSignal.summary) || '초기 동향 데이터를 수집 중입니다.'}</p>
+        <div class="launch-signal-body">${summaryListHtml(launchSignal.summary || '초기 동향 데이터를 수집 중입니다.')}</div>
         <div class="launch-signal-meta">
           ${launchSignal.community_posts ? `<span>커뮤니티 게시글 ${escapeHtml(launchSignal.community_posts)}</span>` : ''}
           ${launchSignal.youtube_videos ? `<span>유튜브 관련 영상 ${escapeHtml(launchSignal.youtube_videos)}</span>` : ''}
@@ -1214,7 +1233,7 @@
       <div class="report-tab-panel" data-tab-panel="video" role="tabpanel">
       <div class="section">
         <p class="section-label">${isUpdateReport ? '업데이트·캐릭터 관련 영상 반응' : '영상 콘텐츠 반응 (유튜브 등)'}</p>
-        <div class="trend-box">${escapeHtml(video.summary) || '추가 확인 필요'}${(video.points || []).length ? `<ul>${video.points.map(p=>`<li>${escapeHtml(p)}</li>`).join('')}</ul>` : ''}<div><span class="date-chip">${escapeHtml(video.date) || '날짜 미상'}</span></div>
+        <div class="trend-box">${summaryListHtml(video.summary || '추가 확인 필요', video.points || [])}<div><span class="date-chip">${escapeHtml(video.date) || '날짜 미상'}</span></div>
           ${(officialPvLinks || reviewVideoLinks) ? `<div class="video-link-groups">
             ${officialPvLinks ? `<div class="video-link-group"><div class="video-link-title">공식 PV · 트레일러</div><div class="video-link-list">${officialPvLinks}</div></div>` : ''}
             ${reviewVideoLinks ? `<div class="video-link-group"><div class="video-link-title">리뷰 · 분석 영상</div><div class="video-link-list">${reviewVideoLinks}</div></div>` : ''}
@@ -1231,8 +1250,7 @@
         <div class="sentiment-assessment ${sentimentKind}">
           <div class="sentiment-assessment-head"><span class="overall-tag ${sentimentKind}">${escapeHtml(sentimentVerdict)}</span><b>1차 분위기 판정</b>${assessment.decision_rule ? `<span class="date-chip">${escapeHtml(assessment.decision_rule)}</span>` : ''}${assessment.confidence ? `<span class="date-chip">신뢰도 ${escapeHtml(assessment.confidence)}</span>` : ''}</div>
           <div class="launch-signal-meta"><span>긍정 의견 ${escapeHtml(opinionCountLabel(sampleCounts.positive))}</span><span>부정 의견 ${escapeHtml(opinionCountLabel(sampleCounts.negative))}</span><span>총 표본 ${totalSampleCount === null ? '확인 불가' : `${totalSampleCount} / 50건`}</span><span>최대: 총 50건</span>${steamRating.status ? `<span>Steam 평가: ${escapeHtml(steamRating.status)}</span>` : ''}${userTrend.verdict ? `<span>유저 동향: ${escapeHtml(userTrend.verdict)}</span>` : ''}${sampleCounts.scope ? `<span>${escapeHtml(sampleCounts.scope)}</span>` : ''}</div>
-          <p>${escapeHtml(assessment.summary) || '수집한 공개 반응 표본을 기준으로 판단한 결과입니다. 세부 근거는 아래 반응 항목을 확인해 주세요.'}</p>
-          ${assessment.basis ? `<p>근거: ${escapeHtml(assessment.basis)}</p>` : ''}
+          <div class="launch-signal-body">${summaryListHtml(assessment.summary || '수집한 공개 반응 표본을 기준으로 판단한 결과입니다. 세부 근거는 아래 반응 항목을 확인해 주세요.', assessment.basis ? `근거: ${assessment.basis}` : '')}</div>
           ${assessmentEvidence.length ? `<div class="sentiment-evidence">${assessmentEvidence.map(e => `<div class="sentiment-evidence-item"><b>${escapeHtml(e.source || '판정 증거')}</b>${e.reliability ? ` · 신뢰도 ${escapeHtml(e.reliability)}` : ''}${e.direction ? ` · ${escapeHtml(sentimentLabel(e.direction))}` : ''}${e.detail ? ` — ${escapeHtml(e.detail)}` : ''}</div>`).join('')}</div>` : ''}
         </div>
         ${(topSteamReviews.length || steamReviewNote) ? `<div class="steam-top-reviews">
@@ -1483,6 +1501,7 @@
     const editBtn = document.getElementById('editBtn');
     const editBanner = document.getElementById('editBanner');
     const reportBody = document.getElementById('reportBody');
+    enhanceNarrativeLists(reportBody);
     enableReportTabs(reportBody);
     if (working){
       const readyTabs = new Set(report._readyTabs || []);

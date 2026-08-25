@@ -1986,11 +1986,21 @@ ${extra}
     const clone = reportCard.cloneNode(true);
     clone.querySelector('.action-row')?.remove();
     clone.querySelector('.edit-banner')?.remove();
-    clone.querySelector('.report-tabs')?.remove();
-    clone.querySelectorAll('.report-tab-panel').forEach(panel => panel.classList.add('on'));
+    clone.querySelector('.report-stage-strip')?.remove();
+    const clonedTabs = [...clone.querySelectorAll('.report-tab')];
+    const clonedPanels = [...clone.querySelectorAll('.report-tab-panel')];
+    clonedTabs.forEach(button => {
+      const selected = button.dataset.tabTarget === 'overview';
+      button.classList.toggle('on', selected);
+      button.classList.remove('locked');
+      button.disabled = false;
+      button.setAttribute('aria-selected', selected ? 'true' : 'false');
+    });
+    clonedPanels.forEach(panel => panel.classList.toggle('on', panel.dataset.tabPanel === 'overview'));
     clone.querySelector('#reportBody')?.removeAttribute('contenteditable');
     const styles = [...document.querySelectorAll('style')].map(style => style.textContent).join('\n');
-    const page = `<!doctype html><html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>${escapeHtml(report.game || 'game')}_동향보고서</title><style>${styles}\nbody{padding:20px;background:#F4F6F9}.report-card{max-width:1180px;margin:0 auto}.app,.main{max-width:none;padding:0;display:block}</style></head><body><main class="main">${clone.outerHTML}</main></body></html>`;
+    const standaloneTabsScript = `(function(){var root=document.getElementById('reportBody');if(!root)return;var buttons=Array.from(root.querySelectorAll('.report-tab'));var panels=Array.from(root.querySelectorAll('.report-tab-panel'));function activate(target){buttons.forEach(function(button){var selected=button.dataset.tabTarget===target;button.classList.toggle('on',selected);button.setAttribute('aria-selected',selected?'true':'false');});panels.forEach(function(panel){panel.classList.toggle('on',panel.dataset.tabPanel===target);});}buttons.forEach(function(button){button.addEventListener('click',function(){activate(button.dataset.tabTarget);});});activate('overview');})();`;
+    const page = `<!doctype html><html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>${escapeHtml(report.game || 'game')}_동향보고서</title><style>${styles}\nbody{padding:20px;background:#F4F6F9}.report-card{max-width:1180px;margin:0 auto}.app,.main{max-width:none;padding:0;display:block}</style></head><body><main class="main">${clone.outerHTML}</main><script>${standaloneTabsScript}<\/script></body></html>`;
     const blob = new Blob([page], { type: 'text/html;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');

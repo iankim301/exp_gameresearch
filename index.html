@@ -411,6 +411,30 @@
   }
   .radio-pill.selected{ border-color:#6A75EC; background:linear-gradient(135deg,#EEF3FF,#F2EEFF); color:#4859D1; box-shadow:0 4px 12px rgba(86,103,221,.10); }
   .primary-btn{ width:100%; padding:12px 20px; border-radius:10px; background:linear-gradient(100deg,#285AE8,#7858E6); box-shadow:0 8px 18px rgba(66,83,218,.18); }
+  .multi-select{ position:relative; }
+  .ms-btn{
+    width:100%; min-height:44px; padding:10px 12px; border:1px solid #DDE3ED; border-radius:10px;
+    background:#FBFCFE; color:var(--ink); text-align:left; cursor:pointer;
+  }
+  .ms-btn.placeholder{ color:#99A4B5; font-weight:400; }
+  .ms-panel{
+    display:none; position:absolute; top:calc(100% + 6px); left:0; right:0; z-index:30;
+    padding:8px; border:1px solid var(--border); border-radius:11px; background:#fff;
+    box-shadow:0 12px 30px rgba(30,43,71,.16);
+  }
+  .ms-panel.open{ display:block; }
+  .ms-option{ display:flex !important; flex-direction:row !important; align-items:center; gap:9px !important; padding:8px 7px; border-radius:7px; cursor:pointer; }
+  .ms-option:hover{ background:#F4F6FB; }
+  .ms-option input{ width:auto; margin:0; accent-color:var(--accent); }
+  .ms-divider{ height:1px; margin:5px 4px; background:var(--border); }
+  .mode-row{ display:flex; align-items:center; justify-content:space-between; gap:18px; margin:5px 0 16px; padding:13px 14px; border:1px solid #E0E4F4; border-radius:11px; background:#F9F9FE; }
+  .mode-row b{ display:block; font-size:13px; }
+  .mode-row small{ display:block; margin-top:2px; color:var(--mute); font-size:11.5px; }
+  .beta-badge{ margin-left:5px; padding:2px 7px; border-radius:20px; background:linear-gradient(135deg,var(--accent),var(--accent-2)); color:#fff; font-size:9px; }
+  .switch-sm{ position:relative; flex:none; width:42px; height:23px; padding:0; border:0; border-radius:20px; background:#C7CEDA; cursor:pointer; transition:.2s; }
+  .switch-sm span{ position:absolute; left:3px; top:3px; width:17px; height:17px; border-radius:50%; background:#fff; box-shadow:0 2px 5px rgba(0,0,0,.2); transition:.2s; }
+  .switch-sm.on{ background:linear-gradient(135deg,var(--accent),var(--accent-2)); }
+  .switch-sm.on span{ transform:translateX(19px); }
   .research-tips{ position:sticky; top:86px; padding:22px; }
   .research-tips h2{ margin:0 0 5px; font-size:15px; }
   .research-tips>p{ margin:0 0 18px; color:var(--mute); font-size:12px; }
@@ -427,10 +451,41 @@
   .report-tabs{ padding:4px; border-radius:10px; background:#F2F4F8; }
   .report-tab{ flex:1; border:0; background:transparent; }
   .report-tab.on{ background:#fff; color:var(--accent); box-shadow:0 2px 7px rgba(35,48,73,.10); }
+  .report-tab.locked{ opacity:.45; cursor:not-allowed; box-shadow:none; }
+  .session-list{ display:grid; gap:10px; }
+  .session-item{ display:flex; align-items:center; justify-content:space-between; gap:18px; padding:15px 17px; border:1px solid var(--border); border-radius:13px; background:#fff; cursor:pointer; transition:.15s; }
+  .session-item:hover{ border-color:#AFC0F6; transform:translateY(-1px); box-shadow:0 5px 16px rgba(30,43,71,.07); }
+  .session-item b{ display:block; font-size:14px; }
+  .session-item small{ color:var(--mute); }
+  .session-meta{ display:flex; align-items:center; gap:10px; color:var(--mute-2); font:11px var(--font-mono); }
+  .verdict-badge{ padding:4px 9px; border-radius:20px; background:var(--amber-soft); color:var(--amber); font:700 11px var(--font-mono); }
+  .result-empty{ padding:85px 20px; border:1px dashed var(--border-strong); border-radius:16px; background:#fff; text-align:center; }
+  .result-empty h2{ margin:0 0 6px; font-size:17px; }
+  .result-empty p{ margin:0 0 19px; color:var(--mute); font-size:13px; }
+  .result-empty .primary-btn{ width:auto; }
+  .report-stage-strip{ display:none; align-items:center; gap:9px; margin:0 0 14px; padding:10px 14px; border:1px solid #CED8FB; border-radius:10px; background:#F0F4FF; color:#465BC2; font-size:12.5px; font-weight:700; }
+  .report-stage-strip.show{ display:flex; }
+  .spin{ display:inline-block; width:13px; height:13px; border:2px solid #C8D2F7; border-top-color:var(--accent); border-radius:50%; animation:spin .8s linear infinite; }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+  .stat-row{ display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:14px; }
+  .stat-card{ position:relative; min-height:115px; padding:16px; overflow:hidden; border:1px solid var(--border); border-radius:14px; background:#fff; }
+  .stat-card::before{ content:''; position:absolute; inset:0 auto 0 0; width:4px; background:var(--accent); }
+  .stat-card.purple::before{ background:var(--accent-2); }.stat-card.amber::before{ background:var(--amber); }.stat-card.green::before{ background:var(--pos); }.stat-card.red::before{ background:var(--neg); }
+  .stat-card .label{ color:var(--mute); font-size:11.5px; }.stat-card .value{ margin-top:10px; font-size:19px; font-weight:800; letter-spacing:-.03em; }.stat-card .source{ margin-top:4px; color:var(--mute-2); font-size:10.5px; }
+  .report-layout{ display:grid; grid-template-columns:minmax(0,2fr) minmax(260px,1fr); gap:14px; align-items:start; }
+  .report-layout #reportBody{ padding:22px; border:1px solid var(--border); border-radius:16px; background:#fff; box-shadow:0 5px 18px rgba(30,43,71,.045); }
+  .trust-card{ position:sticky; top:84px; padding:20px; }.trust-card h3{ margin:0 0 3px; font-size:15px; }.trust-card>p{ margin:0 0 15px; color:var(--mute); font-size:11.5px; }
+  .trust-table{ width:100%; border-collapse:collapse; font-size:12px; }.trust-table td{ padding:10px 3px; border-bottom:1px solid var(--border); vertical-align:top; }.trust-table td:first-child{ width:75px; color:var(--mute); }.trust-table small{ display:block; margin-top:3px; color:var(--mute-2); }
+  .trust-sources{ display:grid; gap:6px; margin-top:10px; }.trust-sources a{ color:var(--mute); font-size:11.5px; text-decoration:none; overflow-wrap:anywhere; }.trust-sources a:hover{ color:var(--accent); }
+  .progress-dock{ position:fixed; z-index:50; left:calc(var(--sidebar-w) + 28px); right:28px; bottom:18px; padding:15px 17px; border:1px solid #D9E0EE; border-radius:14px; background:rgba(255,255,255,.97); box-shadow:0 14px 40px rgba(28,40,68,.18); transform:translateY(calc(100% + 45px)); transition:transform .3s ease; backdrop-filter:blur(10px); }
+  .progress-dock.show{ transform:translateY(0); }.dock-head{ display:flex; justify-content:space-between; margin-bottom:10px; font-size:12px; font-weight:700; }.dock-count{ color:var(--accent); font:700 11px var(--font-mono); }
+  .dock-items{ display:grid; grid-template-columns:repeat(6,1fr); gap:8px; }.dock-item{ padding:8px; border-radius:8px; background:#F6F8FB; }.dock-item-top{ display:flex; justify-content:space-between; gap:5px; margin-bottom:6px; font-size:10.5px; }.dock-status{ color:var(--mute-2); }.dock-item.active .dock-status{ color:var(--accent); }.dock-item.done .dock-status{ color:var(--pos); }.dock-bar{ height:4px; overflow:hidden; border-radius:5px; background:#E5EAF1; }.dock-fill{ width:0; height:100%; border-radius:5px; background:linear-gradient(90deg,var(--accent),var(--accent-2)); transition:width .35s; }.dock-item.done .dock-fill{ background:var(--pos); }
 
   @media (max-width:980px){
     .grid-2col{ grid-template-columns:1fr; }
     .research-tips{ position:static; }
+    .report-layout{ grid-template-columns:1fr; }.trust-card{ position:static; }
+    .dock-items{ grid-template-columns:repeat(3,1fr); }
   }
   @media (max-width:760px){
     .shell{ display:block; }
@@ -443,6 +498,7 @@
     .radio-group{ grid-template-columns:1fr; }
     .radio-pill{ min-height:48px; }
     .report-tabs{ display:grid; grid-template-columns:1fr 1fr; }
+    .stat-row{ grid-template-columns:1fr; }.progress-dock{ left:14px; right:14px; }.dock-items{ grid-template-columns:repeat(2,1fr); }
   }
 </style>
 </head>
@@ -455,6 +511,7 @@
     </div>
     <div class="nav-group-label">Workspace</div>
     <button id="newReportBtn" class="nav-item active"><span class="nav-icon">＋</span><span>새 보고서</span></button>
+    <button id="sessionResultsBtn" class="nav-item"><span class="nav-icon">▤</span><span>이번 세션 결과</span></button>
     <div class="nav-group-label">Archive</div>
       <div id="archiveList" class="archive-list">
         <p class="empty-note">불러오는 중…</p>
@@ -492,8 +549,19 @@
           <label>개발사 <span class="optional">(권장)</span>
             <input id="devInput" type="text" placeholder="예) Ember Entertainment" />
           </label>
-          <label>검색할 지역 <span class="optional">(선택)</span>
-            <input id="countryInput" type="text" placeholder="예) 일본, 미국" />
+          <label>검색할 지역 <span class="optional">(선택 · 복수 선택)</span>
+            <div class="multi-select">
+              <input id="countryInput" type="hidden" />
+              <button id="countryBtn" class="ms-btn placeholder" type="button">국가를 선택하세요</button>
+              <div id="countryPanel" class="ms-panel">
+                <label class="ms-option"><input type="checkbox" value="한국" /><span>한국</span></label>
+                <label class="ms-option"><input type="checkbox" value="일본" /><span>일본</span></label>
+                <label class="ms-option"><input type="checkbox" value="미국" /><span>미국</span></label>
+                <label class="ms-option"><input type="checkbox" value="중국" /><span>중국</span></label>
+                <div class="ms-divider"></div>
+                <label class="ms-option"><input id="countryAll" type="checkbox" value="모든 국가" /><span>모든 국가</span></label>
+              </div>
+            </div>
           </label>
         </div>
         <div class="field-row">
@@ -537,6 +605,11 @@
           </div>
         </div>
 
+        <div class="mode-row">
+          <div><b>병렬로 내용 완성 <span class="beta-badge">BETA</span></b><small>영역별 조사를 동시에 실행하고 완료 단계를 바로 표시합니다.</small></div>
+          <button id="blueprintToggle" class="switch-sm on" type="button" role="switch" aria-checked="true" aria-label="병렬로 내용 완성"><span></span></button>
+        </div>
+
         <button id="generateBtn" class="primary-btn">시그널 수집 시작</button>
         <p id="statusText" class="status-text"></p>
         <div id="progressWrap" class="progress-wrap hidden">
@@ -557,9 +630,27 @@
         </div>
       </section>
 
+      <section id="sessionView" class="hidden">
+        <div class="page-head"><div><h1>이번 세션 결과</h1><p>현재 브라우저 세션에서 생성하거나 불러온 보고서입니다.</p></div><button id="sessionNewBtn" class="primary-btn" style="width:auto">+ 새 보고서</button></div>
+        <div id="sessionEmpty" class="result-empty"><h2>이번 세션에 표시할 보고서가 없습니다.</h2><p>새 보고서를 만들거나 왼쪽 아카이브에서 보고서를 열어주세요.</p><button id="emptyNewBtn" class="primary-btn">새 보고서 만들기</button></div>
+        <div id="sessionList" class="session-list hidden"></div>
+      </section>
+
       <section id="reportCard" class="report-card hidden"></section>
 
     </main>
+  </div>
+</div>
+
+<div id="progressDock" class="progress-dock" aria-live="polite">
+  <div class="dock-head"><span>병렬 조사 진행 상황</span><span id="dockCount" class="dock-count">0 / 6 완료</span></div>
+  <div class="dock-items">
+    <div class="dock-item" data-dock-key="identity"><div class="dock-item-top"><span>게임 정체</span><span class="dock-status">대기</span></div><div class="dock-bar"><div class="dock-fill"></div></div></div>
+    <div class="dock-item" data-dock-key="launch"><div class="dock-item-top"><span>출시 지표</span><span class="dock-status">대기</span></div><div class="dock-bar"><div class="dock-fill"></div></div></div>
+    <div class="dock-item" data-dock-key="features"><div class="dock-item-top"><span>게임 시스템</span><span class="dock-status">대기</span></div><div class="dock-bar"><div class="dock-fill"></div></div></div>
+    <div class="dock-item" data-dock-key="steam"><div class="dock-item-top"><span>Steam 평가</span><span class="dock-status">대기</span></div><div class="dock-bar"><div class="dock-fill"></div></div></div>
+    <div class="dock-item" data-dock-key="community"><div class="dock-item-top"><span>커뮤니티·영상</span><span class="dock-status">대기</span></div><div class="dock-bar"><div class="dock-fill"></div></div></div>
+    <div class="dock-item" data-dock-key="synthesis"><div class="dock-item-top"><span>종합 작성</span><span class="dock-status">대기</span></div><div class="dock-bar"><div class="dock-fill"></div></div></div>
   </div>
 </div>
 
@@ -584,9 +675,21 @@
   const reportCard = document.getElementById('reportCard');
   const formCard = document.getElementById('formCard');
   const inputView = document.getElementById('inputView');
+  const sessionView = document.getElementById('sessionView');
+  const sessionList = document.getElementById('sessionList');
+  const sessionEmpty = document.getElementById('sessionEmpty');
   const archiveList = document.getElementById('archiveList');
   const archiveSearchInput = document.getElementById('archiveSearchInput');
   const newReportBtn = document.getElementById('newReportBtn');
+  const sessionResultsBtn = document.getElementById('sessionResultsBtn');
+  const sessionNewBtn = document.getElementById('sessionNewBtn');
+  const emptyNewBtn = document.getElementById('emptyNewBtn');
+  const countryBtn = document.getElementById('countryBtn');
+  const countryPanel = document.getElementById('countryPanel');
+  const countryAll = document.getElementById('countryAll');
+  const blueprintToggle = document.getElementById('blueprintToggle');
+  const progressDock = document.getElementById('progressDock');
+  const dockCount = document.getElementById('dockCount');
   const progressWrap = document.getElementById('progressWrap');
   const progressFill = document.getElementById('progressFill');
   const progressPhase = document.getElementById('progressPhase');
@@ -597,17 +700,52 @@
   let isEditing = false;
   let progressTimer = null;
   let archiveCache = [];
+  let blueprintOn = true;
+  let sessionReports = [];
 
   function showInputView(){
     inputView.classList.remove('hidden');
+    sessionView.classList.add('hidden');
     formCard.classList.remove('hidden');
     reportCard.classList.add('hidden');
     newReportBtn.classList.add('active');
+    sessionResultsBtn.classList.remove('active');
   }
   function showReportView(){
     inputView.classList.add('hidden');
+    sessionView.classList.add('hidden');
     reportCard.classList.remove('hidden');
     newReportBtn.classList.remove('active');
+    sessionResultsBtn.classList.add('active');
+  }
+  function showSessionView(){
+    inputView.classList.add('hidden');
+    reportCard.classList.add('hidden');
+    sessionView.classList.remove('hidden');
+    newReportBtn.classList.remove('active');
+    sessionResultsBtn.classList.add('active');
+    renderSessionReports();
+  }
+  function rememberSessionReport(id, report){
+    sessionReports = sessionReports.filter(item => item.id !== id);
+    sessionReports.unshift({ id, report, time: new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'}) });
+  }
+  function renderSessionReports(){
+    sessionEmpty.classList.toggle('hidden', sessionReports.length > 0);
+    sessionList.classList.toggle('hidden', sessionReports.length === 0);
+    sessionList.innerHTML = sessionReports.map((item,index) => {
+      const report = item.report || {};
+      const assessment = report.sns_trend?.assessment || {};
+      return `<button class="session-item" type="button" data-session-index="${index}"><span><b>${escapeHtml(report.game || '제목 없음')}</b><small>${escapeHtml(report.info?.dev || '')}${report.stage_label ? ` · ${escapeHtml(report.stage_label)}` : ''}</small></span><span class="session-meta"><span class="verdict-badge">${escapeHtml(assessment.verdict || report.sns_trend?.overall || '확인 중')}</span>${escapeHtml(item.time)}</span></button>`;
+    }).join('');
+    sessionList.querySelectorAll('[data-session-index]').forEach(button => button.addEventListener('click', () => {
+      const item = sessionReports[Number(button.dataset.sessionIndex)];
+      if (!item) return;
+      currentActiveId = item.id;
+      currentReport = item.report;
+      renderReport(item.report);
+      refreshArchiveList();
+    }));
   }
 
   // ---------- stage radio ----------
@@ -625,6 +763,49 @@
   pillReleased.querySelector('input').addEventListener('change', updateStageUI);
   pillCbt.querySelector('input').addEventListener('change', updateStageUI);
   pillUpdate.querySelector('input').addEventListener('change', updateStageUI);
+
+  // ---------- v2 input controls ----------
+  const countryChecks = () => [...countryPanel.querySelectorAll('input[type="checkbox"]')];
+  function refreshCountrySelection(){
+    const selected = countryChecks().filter(input => input.checked).map(input => input.value);
+    countryInput.value = selected.join(', ');
+    countryBtn.textContent = selected.length ? selected.join(', ') : '국가를 선택하세요';
+    countryBtn.classList.toggle('placeholder', !selected.length);
+  }
+  countryBtn.addEventListener('click', event => { event.stopPropagation(); countryPanel.classList.toggle('open'); });
+  document.addEventListener('click', event => {
+    if (!countryPanel.contains(event.target) && event.target !== countryBtn) countryPanel.classList.remove('open');
+  });
+  countryChecks().forEach(input => input.addEventListener('change', () => {
+    if (input === countryAll && input.checked) countryChecks().forEach(other => { if (other !== countryAll) other.checked = false; });
+    if (input !== countryAll && input.checked) countryAll.checked = false;
+    refreshCountrySelection();
+  }));
+  blueprintToggle.addEventListener('click', () => {
+    blueprintOn = !blueprintOn;
+    blueprintToggle.classList.toggle('on', blueprintOn);
+    blueprintToggle.setAttribute('aria-checked', blueprintOn ? 'true' : 'false');
+  });
+
+  const dockItems = Object.fromEntries([...document.querySelectorAll('[data-dock-key]')].map(item => [item.dataset.dockKey,item]));
+  function resetDock(){
+    Object.values(dockItems).forEach(item => {
+      item.classList.remove('active','done');
+      item.querySelector('.dock-status').textContent = '대기';
+      item.querySelector('.dock-fill').style.width = '0%';
+    });
+    dockCount.textContent = '0 / 6 완료';
+  }
+  function setDockStep(key,state,pct=0){
+    const item = dockItems[key];
+    if (!item) return;
+    item.classList.remove('active','done');
+    if (state) item.classList.add(state);
+    item.querySelector('.dock-status').textContent = state === 'done' ? '완료' : state === 'active' ? '진행 중' : state === 'error' ? '오류' : '대기';
+    item.querySelector('.dock-fill').style.width = `${Math.max(0,Math.min(100,pct))}%`;
+    const done = Object.values(dockItems).filter(el => el.classList.contains('done')).length;
+    dockCount.textContent = `${done} / 6 완료`;
+  }
 
   // ---------- helpers ----------
   function slugify(str){
@@ -892,12 +1073,16 @@
     currentActiveId = id;
     currentReport = report;
     isEditing = false;
+    rememberSessionReport(id, report);
     renderReport(report);
     showReportView();
     refreshArchiveList();
   }
 
   archiveSearchInput.addEventListener('input', filterArchiveList);
+  sessionResultsBtn.addEventListener('click', showSessionView);
+  sessionNewBtn.addEventListener('click', showInputView);
+  emptyNewBtn.addEventListener('click', showInputView);
   newReportBtn.addEventListener('click', () => {
     if (isEditing){
       alert('기존 보고서의 수정을 먼저 완료해 주세요.');
@@ -1248,8 +1433,30 @@
     report.sns_trend.detail = newDetail;
   }
 
+  function reportStatCardsHtml(report){
+    const metrics = metricDisplayData(report.metrics || {}).items.slice(0,2);
+    const colors = ['','purple'];
+    const cards = metrics.map((item,index) => `<div class="stat-card ${colors[index]}"><div class="label">${escapeHtml(item.label)}</div><div class="value">${escapeHtml(item.value)}</div><div class="source">${escapeHtml(item.source || '출처 확인 필요')}</div></div>`);
+    const steam = report.sns_trend?.assessment?.steam_rating || {};
+    const steamStatus = String(steam.status || '미확인');
+    const steamColor = /negative/i.test(steamStatus) ? 'red' : /positive/i.test(steamStatus) ? 'green' : /mixed/i.test(steamStatus) ? 'amber' : '';
+    cards.push(`<div class="stat-card ${steamColor}"><div class="label">Steam 리뷰 평가</div><div class="value">${escapeHtml(steamStatus)}</div><div class="source">${escapeHtml(steam.summary || '공식 평가 확인 필요')}</div></div>`);
+    return cards.join('');
+  }
+
+  function reportTrustHtml(report){
+    const launch = report.launch_signal || {};
+    const assessment = report.sns_trend?.assessment || {};
+    const counts = assessment.sample_counts || {};
+    const total = opinionSampleTotal(counts);
+    const sources = (report.sources || []).slice(0,5);
+    const warning = report.pipeline_warnings?.length ? `<div class="metric-note" style="margin-top:12px">일부 조사 제한: ${escapeHtml(report.pipeline_warnings.join(' / '))}</div>` : '';
+    return `<aside class="card trust-card"><h3>보고서 신뢰도</h3><p>이 판정이 어떤 근거로 만들어졌는지</p><table class="trust-table"><tr><td>주목도</td><td><b>${escapeHtml(launch.attention || '확인 필요')}</b><small>${escapeHtml(launch.phase || launch.scope || '')}</small></td></tr><tr><td>표본 수</td><td><b>${total ? `${total}건` : '확인 필요'}</b><small>${escapeHtml(counts.scope || '직접 확인한 공개 유저 반응')}</small></td></tr><tr><td>판정 신뢰도</td><td><b>${escapeHtml(assessment.confidence || '확인 필요')}</b><small>${escapeHtml(assessment.decision_rule || assessment.basis || '')}</small></td></tr></table>${warning}<h3 style="margin-top:20px">참고 자료</h3><div class="trust-sources">${sources.length ? sources.map(source => `<a href="${escapeHtml(source.u || '#')}" target="_blank" rel="noopener noreferrer">${escapeHtml(source.n || source.u || '출처')}</a>`).join('') : '<span class="empty-note">확인된 출처 없음</span>'}</div></aside>`;
+  }
+
   function renderReport(report){
     const info = report.info || {};
+    const working = Boolean(report._working);
     showReportView();
     reportCard.innerHTML = `
       <div class="report-head">
@@ -1258,20 +1465,39 @@
           <div class="report-meta">GENERATED ${escapeHtml(report.generated_at || todayStr())}</div>
         </div>
         <div class="action-row">
-          <button class="action-btn" id="editBtn">✏️ 내용 수정</button>
-          <button class="action-btn" id="downloadJsonBtn">JSON 내보내기</button>
-          <button class="action-btn" id="downloadPdfBtn">PDF 다운로드</button>
-          <button class="action-btn" id="downloadMdBtn">MD 보고서 생성</button>
+          <button class="action-btn" id="detailNewBtn">+ 새 보고서</button>
+          <button class="action-btn" id="editBtn" ${working ? 'disabled' : ''}>✏️ 내용 수정</button>
+          <button class="action-btn" id="downloadJsonBtn" ${working ? 'disabled' : ''}>JSON 내보내기</button>
+          <button class="action-btn" id="downloadPdfBtn" ${working ? 'disabled' : ''}>PDF 다운로드</button>
+          <button class="action-btn" id="downloadMdBtn" ${working ? 'disabled' : ''}>MD 보고서 생성</button>
         </div>
       </div>
+      <div class="report-stage-strip ${working ? 'show' : ''}"><span class="spin"></span><span>${escapeHtml(report._stageText || '영역별 조사를 진행하고 있습니다.')}</span></div>
       <div id="editBanner" class="edit-banner hidden">✏️ 수정 모드입니다. 본문을 클릭해 편집하고, SNS 반응 항목은 좌측 ⠿ 핸들을 드래그해 순서를 바꿀 수 있습니다. [수정 완료]를 누르면 팀 아카이브와 JSON에 반영됩니다.</div>
-      <div id="reportBody">${report.edited_html ? report.edited_html : buildReportBodyHtmlV2(report)}</div>
+      <div class="stat-row">${reportStatCardsHtml(report)}</div>
+      <div class="report-layout"><div id="reportBody">${report.edited_html ? report.edited_html : buildReportBodyHtmlV2(report)}</div>${reportTrustHtml(report)}</div>
     `;
 
     const editBtn = document.getElementById('editBtn');
     const editBanner = document.getElementById('editBanner');
     const reportBody = document.getElementById('reportBody');
     enableReportTabs(reportBody);
+    if (working){
+      const readyTabs = new Set(report._readyTabs || []);
+      const buttons = [...reportBody.querySelectorAll('.report-tab')];
+      buttons.forEach(button => {
+        const ready = readyTabs.has(button.dataset.tabTarget);
+        button.classList.toggle('locked', !ready);
+        button.disabled = !ready;
+      });
+      const firstReady = buttons.find(button => !button.disabled);
+      if (firstReady) firstReady.click();
+      else {
+        reportBody.querySelectorAll('.report-tab-panel').forEach(panel => panel.classList.remove('on'));
+        reportBody.insertAdjacentHTML('beforeend','<div class="empty-state">완료되는 조사 영역부터 탭이 열립니다.</div>');
+      }
+    }
+    document.getElementById('detailNewBtn').addEventListener('click', showInputView);
 
     editBtn.addEventListener('click', async () => {
       if (!isEditing){
@@ -1305,6 +1531,7 @@
     const shareBtn = document.createElement('button');
     shareBtn.className = 'action-btn';
     shareBtn.textContent = '웹 공유용 HTML';
+    shareBtn.disabled = working;
     shareBtn.addEventListener('click', () => downloadShareHtml(report));
     reportCard.querySelector('.action-row')?.appendChild(shareBtn);
   }
@@ -1452,6 +1679,95 @@ ${schema}
     return data.text;
   }
 
+  async function callReportTask(instructions,input,useWebSearch=true,timeoutMs=180000){
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs + 10000);
+    try{
+      const response = await fetch('/api/report', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        signal:controller.signal,
+        body:JSON.stringify({instructions,input,useWebSearch,timeoutMs})
+      });
+      const data = await response.json();
+      if (!response.ok || data.error) throw new Error(data.error || '조사 요청에 실패했습니다');
+      return extractJson(data.text || '');
+    }catch(error){
+      if (error.name === 'AbortError') throw new Error(`조사 단계가 제한 시간(약 ${Math.ceil(timeoutMs/60000)}분)을 초과했습니다`);
+      throw error;
+    }finally{ clearTimeout(timeout); }
+  }
+
+  function blueprintTaskPrompt(area,schema,extra=''){
+    return `당신은 한국 게임 분석팀의 전문 리서처입니다. 오늘은 ${todayStr()}입니다.
+담당 영역은 [${area}]입니다. web_search로 서로 다른 검색어를 사용해 충분히 확인하고, 실제로 검증한 정보만 작성하세요. 검색되지 않은 수치·URL·표본은 추측하지 마세요. 뉴스/공식 자료는 사실 확인에, 실제 유저 리뷰·게시글·댓글만 감성 근거에 사용하세요. 모든 설명은 한국어로 작성합니다.
+${extra}
+코드블록이나 설명 없이 다음 형태의 순수 JSON 하나만 반환하세요: ${schema}`;
+  }
+
+  function mergeSources(...groups){
+    const seen = new Set();
+    return groups.flat().filter(source => {
+      const key = String(source?.u || source?.n || '').trim();
+      if (!key || seen.has(key)) return false;
+      seen.add(key); return true;
+    }).slice(0,12);
+  }
+
+  async function runBlueprintResearch(userMsg,isCbt,isUpdate,baseReport,onUpdate){
+    const partial = { ...baseReport, info:{}, launch_signal:{}, overview:{}, features:[], video_trend:{}, sns_trend:{assessment:{}}, metrics:{items:[]}, sources:[] };
+    const readyTabs = new Set();
+    const warnings = [];
+    const notify = stageText => {
+      partial._working = true; partial._stageText = stageText; partial._readyTabs = [...readyTabs];
+      onUpdate({...partial, info:{...partial.info}, overview:{...partial.overview}, sns_trend:{...partial.sns_trend,assessment:{...(partial.sns_trend?.assessment || {})}}, sources:[...partial.sources]});
+    };
+
+    setDockStep('identity','active',55);
+    notify('1/3 · 게임 정체를 확인하고 있습니다.');
+    const identity = await callReportTask(
+      blueprintTaskPrompt('게임 정체 확인','{"game":"","info":{"genre":"","dev":"","pub":"","platform":"","engine":"","release":"","note":""},"sources":[{"n":"","u":""}]}','사용자가 준 개발사와 특징 힌트를 검색 결과와 대조해 정확히 같은 게임인지 먼저 확정하세요.'),
+      userMsg
+    );
+    partial.game = identity.game || partial.game;
+    partial.info = identity.info || {};
+    partial.sources = mergeSources(identity.sources || []);
+    setDockStep('identity','done',100);
+    ['launch','features','steam','community'].forEach(key => setDockStep(key,'active',20));
+    notify('2/3 · 출시 지표·게임 시스템·Steam·커뮤니티/영상을 병렬 조사 중입니다.');
+    const identityContext = `${userMsg}\n확정된 게임 정보: ${JSON.stringify(identity)}`;
+
+    const launchPromise = callReportTask(
+      blueprintTaskPrompt('출시 지표와 정량 데이터','{"launch_signal":{"phase":"","data_sufficiency":"충분|제한적","attention":"낮음|보통|높음","community_posts":"","youtube_videos":"","scope":"","summary":""},"metrics":{"items":[{"label":"","value":"","source":"","scope":""}],"unavailable_items":[{"label":"","reason":""}],"date":"YYYY/MM/DD","note":""},"cbt_info":{"history":[],"pv_schedule":[]},"sources":[{"n":"","u":""}]}','Steam 매출 순위는 공식 글로벌 Top Sellers, 동접은 SteamDB 24-hour peak만 사용하세요. 앱 마켓 순위에는 국가 범위를 반드시 적으세요. 확인 불가 항목은 items에 넣지 마세요.'), identityContext
+    ).then(result => { partial.launch_signal=result.launch_signal||{}; partial.metrics=result.metrics||{items:[]}; if(result.cbt_info) partial.cbt_info=result.cbt_info; partial.sources=mergeSources(partial.sources,result.sources||[]); setDockStep('launch','done',100); notify('2/3 · 출시 지표 완료 · 나머지 영역을 계속 조사 중입니다.'); return result; }).catch(error => { warnings.push(`출시 지표: ${error.message}`); setDockStep('launch','error',100); notify('2/3 · 출시 지표는 제한됨 · 나머지 영역을 계속 조사 중입니다.'); return {_error:error.message}; });
+    const featuresPromise = callReportTask(
+      blueprintTaskPrompt('게임 시스템','{"features":[{"title":"","category":"in_game","points":[""]}],"sources":[{"n":"","u":""}]}','실제로 플레이하는 전투·성장·탐험·수집·멀티플레이 시스템만 3~4개 작성하고 운영·보상·과금 내용은 제외하세요.'), identityContext
+    ).then(result => { partial.features=result.features||[]; partial.sources=mergeSources(partial.sources,result.sources||[]); readyTabs.add('systems'); setDockStep('features','done',100); notify('2/3 · 게임 시스템 완료 · 해당 탭을 먼저 확인할 수 있습니다.'); return result; }).catch(error => { warnings.push(`게임 시스템: ${error.message}`); setDockStep('features','error',100); notify('2/3 · 게임 시스템은 제한됨 · 나머지 영역을 계속 조사 중입니다.'); return {_error:error.message}; });
+    const steamPromise = callReportTask(
+      blueprintTaskPrompt('Steam 공식 평가와 상위 유저 리뷰','{"sns_trend":{"assessment":{"steam_rating":{"status":"","summary":"","url":""},"evidence":[{"source":"","reliability":"높음|보통","direction":"positive|negative|mixed","detail":"","url":""}]},"steam_top_reviews":[{"sentiment":"positive|negative","summary":"","helpful_count":0,"playtime":"","url":""}],"steam_review_note":""},"sources":[{"n":"","u":""}]}','Steam 공식 전체 평가와 Most Helpful 일반 유저 리뷰만 사용하세요. 추천 수·리뷰 수·플레이 시간·URL을 실제 확인하지 못하면 만들지 마세요.'), identityContext
+    ).then(result => { const sns=result.sns_trend||{}; partial.sns_trend={...partial.sns_trend,...sns,assessment:{...(partial.sns_trend.assessment||{}),...(sns.assessment||{})}}; partial.sources=mergeSources(partial.sources,result.sources||[]); setDockStep('steam','done',100); notify('2/3 · Steam 평가 완료 · 커뮤니티와 영상 조사를 계속합니다.'); return result; }).catch(error => { warnings.push(`Steam 평가: ${error.message}`); setDockStep('steam','error',100); notify('2/3 · Steam 평가는 제한됨 · 나머지 영역을 계속 조사 중입니다.'); return {_error:error.message}; });
+    const communityPromise = callReportTask(
+      blueprintTaskPrompt('커뮤니티 유저 반응과 영상','{"video_trend":{"summary":"","points":[""],"official_pv":[{"title":"","channel":"","url":""}],"review_videos":[{"title":"","channel":"","url":""}],"date":"YYYY/MM/DD"},"sns_trend":{"quick_pos":[""],"quick_neg":[""],"detail":[{"label":"","sentiment":"positive|negative|mixed","desc":""}],"assessment":{"user_trend":{"verdict":"긍정 우세|부정 우세|혼재","summary":""},"sample_counts":{"positive":0,"negative":0,"mixed":0,"scope":""},"evidence":[{"source":"","reliability":"높음|보통","direction":"positive|negative|mixed","detail":"","url":""}]}},"sources":[{"n":"","u":""}]}','서로 다른 실제 유저 의견을 합계 최대 50건만 분류하세요. 웹진·뉴스·공식 계정·광고 콘텐츠는 감성 표본에서 제외하세요. 영상 URL은 검증된 HTTPS YouTube 직접 링크만 작성하세요.'), identityContext
+    ).then(result => { const sns=result.sns_trend||{}; const priorAssessment=partial.sns_trend.assessment||{}; partial.video_trend=result.video_trend||{}; partial.sns_trend={...partial.sns_trend,...sns,assessment:{...priorAssessment,...(sns.assessment||{}),evidence:[...(priorAssessment.evidence||[]),...(sns.assessment?.evidence||[])]}}; partial.sources=mergeSources(partial.sources,result.sources||[]); readyTabs.add('community'); readyTabs.add('video'); setDockStep('community','done',100); notify('2/3 · 커뮤니티·영상 완료 · 종합 판정을 준비합니다.'); return result; }).catch(error => { warnings.push(`커뮤니티·영상: ${error.message}`); setDockStep('community','error',100); notify('2/3 · 커뮤니티·영상은 제한됨 · 종합 판정을 준비합니다.'); return {_error:error.message}; });
+
+    const [launch,features,steam,community] = await Promise.all([launchPromise,featuresPromise,steamPromise,communityPromise]);
+    setDockStep('synthesis','active',55);
+    notify('3/3 · 조사 결과를 교차 검증해 개요와 최종 판정을 작성 중입니다.');
+    const synthesisInput = JSON.stringify({identity,launch,features,steam,community});
+    const synthesis = await callReportTask(
+      `당신은 한국 게임 분석팀의 편집장입니다. 제공된 4개 조사 결과만 사용해 서로 충돌하는 근거를 교차 검토하고 최종 판정과 개요를 작성하세요. 새 사실이나 수치를 만들지 마세요. overview는 게임 정보와 출시 맥락, 긍정 반응, 부정·우려 반응, 출시 동향 종합을 각각 명확히 요약합니다. assessment.summary는 반드시 "Steam 평가: ... / 유저 동향: ... / 종합: ..." 순서입니다. 코드블록 없이 다음 JSON만 반환하세요: {"overview":{"game_summary":"","positive_summary":"","negative_summary":"","service_mood":""},"assessment":{"verdict":"긍정 우세|부정 우세|혼재","confidence":"높음|보통|낮음","decision_rule":"","summary":"","basis":""}}`,
+      synthesisInput,false,120000
+    );
+    partial.overview=synthesis.overview||{};
+    partial.sns_trend.assessment={...(partial.sns_trend.assessment||{}),...(synthesis.assessment||{})};
+    partial.sns_trend.overall=synthesis.assessment?.verdict||partial.sns_trend.assessment.verdict||'혼재';
+    if (warnings.length) partial.pipeline_warnings=warnings;
+    readyTabs.add('overview');
+    setDockStep('synthesis','done',100);
+    delete partial._working; delete partial._stageText; delete partial._readyTabs;
+    return partial;
+  }
+
   // Legacy implementation retained below only as an inactive reference.
   async function callClaude(userMsg, isCbt){
     const messages = [{ role: 'user', content: userMsg }];
@@ -1527,11 +1843,18 @@ ${schema}
       return;
     }
 
+    const useBlueprint = blueprintOn;
     generateBtn.disabled = true;
     statusText.className = 'status-text';
     statusText.textContent = '';
-    progressWrap.classList.remove('hidden');
-    startProgressSim();
+    if (useBlueprint){
+      resetDock();
+      progressDock.classList.add('show');
+      progressWrap.classList.add('hidden');
+    } else {
+      progressWrap.classList.remove('hidden');
+      startProgressSim();
+    }
 
     let userMsg = `게임명: ${gameName}`;
     if (dev) userMsg += `\n개발사: ${dev}`;
@@ -1549,14 +1872,27 @@ ${schema}
     } else {
       userMsg += `\n출시 상태: 정식 출시`;
     }
-    userMsg += `\n먼저 web_search로 이 게임을 충분히 조사한 뒤(최소 5회 검색), 지시된 JSON 스키마로 심층 보고서를 작성해줘.`;
+    if (!useBlueprint) userMsg += `\n먼저 web_search로 이 게임을 충분히 조사한 뒤(최소 5회 검색), 지시된 JSON 스키마로 심층 보고서를 작성해줘.`;
 
     try{
-      const fullText = await callOpenAI(userMsg, isCbt, isUpdate);
-      if (!fullText.trim()) throw new Error('응답에서 텍스트를 찾을 수 없습니다');
-
-      bumpProgress(95, '보고서 정리 중');
-      const report = extractJson(fullText);
+      let report;
+      if (useBlueprint){
+        const workingBase = {
+          game:gameName,
+          info:{dev},
+          generated_at:todayStr(),
+          stage_label:isUpdate ? `업데이트 · ${updateTarget}` : isCbt ? cbtName : '정식 출시'
+        };
+        report = await runBlueprintResearch(userMsg,isCbt,isUpdate,workingBase,workingReport => {
+          currentReport = workingReport;
+          renderReport(workingReport);
+        });
+      } else {
+        const fullText = await callOpenAI(userMsg, isCbt, isUpdate);
+        if (!fullText.trim()) throw new Error('응답에서 텍스트를 찾을 수 없습니다');
+        bumpProgress(95, '보고서 정리 중');
+        report = extractJson(fullText);
+      }
       report.generated_at = todayStr();
       report.stage_label = isUpdate ? `업데이트 · ${updateTarget}` : isCbt ? cbtName : '정식 출시';
       if (isUpdate){
@@ -1584,21 +1920,31 @@ ${schema}
       await saveArchive(list);
       archiveCache = list;
       filterArchiveList();
+      rememberSessionReport(id, report);
 
       isEditing = false;
       renderReport(report);
-      stopProgressSim('완료');
-      statusText.textContent = '✓ 보고서 생성 완료 — [내용 수정]으로 검수 후 PDF로 저장하세요';
+      if (useBlueprint){
+        dockCount.textContent = report.pipeline_warnings?.length ? '완료 · 일부 영역 제한' : '6 / 6 완료';
+        setTimeout(() => progressDock.classList.remove('show'), 1400);
+      } else stopProgressSim('완료');
+      statusText.textContent = report.pipeline_warnings?.length
+        ? `보고서 생성 완료 · 제한된 영역 ${report.pipeline_warnings.length}개 — 저장 전 내용을 검수해 주세요`
+        : '✓ 보고서 생성 완료 — [내용 수정]으로 검수 후 PDF로 저장하세요';
       showReportView();
 
     }catch(err){
       console.error(err);
-      failProgressSim();
+      if (useBlueprint){
+        dockCount.textContent = '일부 단계 오류';
+        showInputView();
+        setTimeout(() => progressDock.classList.remove('show'), 900);
+      } else failProgressSim();
       statusText.textContent = '보고서 생성에 실패했습니다: ' + err.message + ' (다시 시도해 주세요)';
       statusText.className = 'status-text err';
     }finally{
       generateBtn.disabled = false;
-      setTimeout(() => { progressWrap.classList.add('hidden'); setProgress(0,'대기 중'); }, 1500);
+      if (!useBlueprint) setTimeout(() => { progressWrap.classList.add('hidden'); setProgress(0,'대기 중'); }, 1500);
     }
   }
 

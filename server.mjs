@@ -32,7 +32,7 @@ function stripCitationTags(text) {
 // 응답이 max_tokens로 잘렸을 때도 같은 방식으로 이어쓰기를 요청한다.
 const MAX_ROUNDS = 6;
 
-async function callClaude(instructions, input) {
+async function callClaude(instructions, input, useWebSearch = true, timeoutMs = 360000) {
   const messages = [{ role: 'user', content: input }];
   let lastText = '';
 
@@ -44,12 +44,13 @@ async function callClaude(instructions, input) {
         'anthropic-version': '2023-06-01',
         'Content-Type': 'application/json'
       },
+      signal: AbortSignal.timeout(timeoutMs),
       body: JSON.stringify({
         model,
         max_tokens: 8000,
         system: instructions,
         messages,
-        tools: [{ type: 'web_search_20250305', name: 'web_search' }]
+        ...(useWebSearch ? { tools: [{ type: 'web_search_20250305', name: 'web_search' }] } : {})
       })
     });
 
@@ -87,10 +88,12 @@ createServer(async (req, res) => {
     let raw = '';
     for await (const chunk of req) raw += chunk;
 
-    let instructions, input;
+    let instructions, input, useWebSearch = true, timeoutMs = 360000;
     try {
-      ({ instructions, input } = JSON.parse(raw));
+      ({ instructions, input, useWebSearch = true, timeoutMs = 360000 } = JSON.parse(raw));
       if (typeof instructions !== 'string' || typeof input !== 'string') throw new Error('Invalid request.');
+      if (typeof useWebSearch !== 'boolean') throw new Error('Invalid useWebSearch value.');
+      if (!Number.isInteger(timeoutMs) || timeoutMs < 30000 || timeoutMs > 360000) throw new Error('Invalid timeoutMs value.');
     } catch (error) {
       return send(res, 400, { error: error.message || 'Request failed.' });
     }
@@ -105,7 +108,7 @@ createServer(async (req, res) => {
     }, 15000);
 
     try {
-      const text = stripCitationTags(await callClaude(instructions, input));
+      const text = stripCitationTags(await callClaude(instructions, input, useWebSearch, timeoutMs));
       clearInterval(heartbeat);
       if (!text || !text.trim()) { res.end(JSON.stringify({ error: 'Claude returned no text.' })); return; }
       res.end(JSON.stringify({ text }));

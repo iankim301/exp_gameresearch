@@ -187,6 +187,39 @@
   .info-cell .v{ font-size:13.5px; margin-top:3px; font-weight:700; }
 
   .overview-box{ background:var(--surface-2); border:1px solid var(--border); border-radius:10px; padding:14px 16px; font-size:13.5px; }
+  .report-tabs{ display:flex; gap:7px; margin-bottom:18px; flex-wrap:wrap; }
+  .report-tab{
+    padding:8px 13px; border:1px solid var(--border-strong); border-radius:8px;
+    background:var(--surface); color:var(--ink); font:inherit; font-size:12.5px; cursor:pointer;
+    transition:border-color .15s, color .15s, background .15s;
+  }
+  .report-tab:hover{ border-color:var(--accent); color:var(--accent); }
+  .report-tab.on{ border-color:var(--accent); background:var(--accent); color:#fff; font-weight:700; }
+  .report-tab-panel{ display:none; }
+  .report-tab-panel.on{ display:block; }
+  .export-all-tabs .report-tabs{ display:none; }
+  .export-all-tabs .report-tab-panel{ display:block !important; }
+  .game-info-table{ width:100%; border-collapse:collapse; table-layout:fixed; border:1px solid var(--border); font-size:13px; }
+  .game-info-table th, .game-info-table td{ padding:10px 12px; border-bottom:1px solid var(--border); vertical-align:top; }
+  .game-info-table tr:last-child th, .game-info-table tr:last-child td{ border-bottom:none; }
+  .game-info-table th{ width:112px; background:var(--surface-2); color:var(--mute); text-align:left; font-weight:600; }
+  .game-info-table td{ background:var(--surface); color:var(--ink); }
+  .overview-summary, .reaction-summary{ border-radius:10px; padding:14px 16px; font-size:13px; line-height:1.7; margin-bottom:14px; }
+  .overview-summary{ background:linear-gradient(120deg,var(--accent-soft),#F1EDFE); border-left:3px solid var(--accent); }
+  .overview-summary b, .reaction-summary b{ display:block; margin-bottom:6px; font-size:13.5px; }
+  .overview-summary b{ color:var(--accent); }
+  .reaction-summary.positive{ background:var(--pos-soft); border-left:3px solid var(--pos); }
+  .reaction-summary.positive b{ color:var(--pos); }
+  .reaction-summary.negative{ background:var(--neg-soft); border-left:3px solid var(--neg); }
+  .reaction-summary.negative b{ color:var(--neg); }
+  .overview-list{ margin:0; padding-left:19px; }
+  .overview-list li{ margin-bottom:7px; padding-left:2px; }
+  .overview-list li:last-child{ margin-bottom:0; }
+  @media (max-width:600px){
+    .report-tab{ flex:1 1 calc(50% - 7px); }
+    .game-info-table th{ width:92px; }
+    .game-info-table th, .game-info-table td{ padding:9px 10px; }
+  }
 
   .feature-list{ display:flex; flex-direction:column; gap:10px; }
   .feature-item{ background:var(--surface-2); border:1px solid var(--border); border-radius:10px; padding:13px 15px; }
@@ -540,6 +573,35 @@
       return `<a class="video-link" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">▶ ${escapeHtml(title)}${channel ? ` · ${escapeHtml(channel)}` : ''}</a>`;
     }).filter(Boolean).join('');
   }
+  function summaryListHtml(...values){
+    const normalized = values
+      .flat()
+      .map(value => String(value || '').trim())
+      .filter(Boolean)
+      .join('\n')
+      .replace(/([.!?])\s+/g, '$1\n');
+    const items = normalized
+      .split(/\n+/)
+      .map(item => item.replace(/^[\s•·*\-–—]+/, '').trim())
+      .filter(Boolean);
+    if (!items.length) return '<ul class="overview-list"><li>추가 확인 필요</li></ul>';
+    return `<ul class="overview-list">${items.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`;
+  }
+  function enableReportTabs(reportBody){
+    const buttons = [...reportBody.querySelectorAll('.report-tab')];
+    const panels = [...reportBody.querySelectorAll('.report-tab-panel')];
+    if (!buttons.length || !panels.length) return;
+    const activate = target => {
+      buttons.forEach(button => {
+        const selected = button.dataset.tabTarget === target;
+        button.classList.toggle('on', selected);
+        button.setAttribute('aria-selected', selected ? 'true' : 'false');
+      });
+      panels.forEach(panel => panel.classList.toggle('on', panel.dataset.tabPanel === target));
+    };
+    buttons.forEach(button => button.addEventListener('click', () => activate(button.dataset.tabTarget)));
+    activate(buttons.find(button => button.classList.contains('on'))?.dataset.tabTarget || buttons[0].dataset.tabTarget);
+  }
   function setProgress(pct, phaseLabel){
     progressFill.style.width = Math.max(0, Math.min(100, pct)) + '%';
     progressPct.textContent = Math.round(Math.max(0, Math.min(100, pct))) + '%';
@@ -720,6 +782,33 @@
     const hasLaunchSignal = !isUpdateReport && (launchSignal.summary || launchSignal.phase || launchSignal.community_posts || launchSignal.youtube_videos);
 
     return `
+      <div class="report-tabs" role="tablist" aria-label="보고서 영역" contenteditable="false">
+        <button type="button" class="report-tab on" data-tab-target="overview" role="tab">개요</button>
+        <button type="button" class="report-tab" data-tab-target="systems" role="tab">게임 시스템</button>
+        <button type="button" class="report-tab" data-tab-target="community" role="tab">커뮤니티 반응</button>
+        <button type="button" class="report-tab" data-tab-target="video" role="tab">영상 반응/참고 자료(링크)</button>
+      </div>
+
+      <div class="report-tab-panel on" data-tab-panel="overview" role="tabpanel">
+      <div class="section">
+        <p class="section-label">게임 정보</p>
+        <table class="game-info-table">
+          <tr><th>게임명</th><td>${escapeHtml(report.game) || '추가 확인 필요'}</td></tr>
+          <tr><th>장르</th><td>${escapeHtml(info.genre) || '추가 확인 필요'}</td></tr>
+          <tr><th>개발사</th><td>${escapeHtml(info.dev) || '추가 확인 필요'}</td></tr>
+          <tr><th>유통사</th><td>${escapeHtml(info.pub) || '추가 확인 필요'}</td></tr>
+          <tr><th>플랫폼</th><td>${escapeHtml(info.platform) || '추가 확인 필요'}</td></tr>
+          <tr><th>엔진</th><td>${escapeHtml(info.engine) || '추가 확인 필요'}</td></tr>
+        </table>
+        ${info.note ? `<div class="metric-note">${escapeHtml(info.note)}</div>` : ''}
+      </div>
+
+      <div class="section">
+        <div class="overview-summary"><b>동향 요약</b>${summaryListHtml(overview.game_summary, overview.service_mood)}</div>
+        <div class="reaction-summary positive"><b>긍정 반응 요약</b>${summaryListHtml(overview.positive_summary)}</div>
+        <div class="reaction-summary negative"><b>부정·우려 반응 요약</b>${summaryListHtml(overview.negative_summary)}</div>
+      </div>
+
       ${isUpdateReport ? `
       <div class="section">
         <p class="section-label">조사 범위</p>
@@ -728,19 +817,7 @@
           <div class="info-cell"><div class="k">업데이트/출시일</div><div class="v">${escapeHtml(updateDate) || '추가 확인 필요'}</div></div>
           <div class="info-cell"><div class="k">조사 원칙</div><div class="v">해당 대상 관련 내용만 수집</div></div>
         </div>
-      </div>` : `
-      <div class="section">
-        <p class="section-label">기본 정보</p>
-        <div class="info-grid">
-          <div class="info-cell"><div class="k">장르</div><div class="v">${escapeHtml(info.genre) || '추가 확인 필요'}</div></div>
-          <div class="info-cell"><div class="k">개발사</div><div class="v">${escapeHtml(info.dev) || '추가 확인 필요'}</div></div>
-          <div class="info-cell"><div class="k">유통사</div><div class="v">${escapeHtml(info.pub) || '추가 확인 필요'}</div></div>
-          <div class="info-cell"><div class="k">플랫폼</div><div class="v">${escapeHtml(info.platform) || '추가 확인 필요'}</div></div>
-          <div class="info-cell"><div class="k">엔진</div><div class="v">${escapeHtml(info.engine) || '추가 확인 필요'}</div></div>
-          <div class="info-cell"><div class="k">출시/테스트 일정</div><div class="v">${escapeHtml(info.release) || '추가 확인 필요'}</div></div>
-        </div>
-        ${info.note ? `<div class="metric-note">${escapeHtml(info.note)}</div>` : ''}
-      </div>`}
+      </div>` : ''}
 
       ${hasLaunchSignal ? `
       <div class="launch-signal">
@@ -752,16 +829,6 @@
           ${launchSignal.scope ? `<span>${escapeHtml(launchSignal.scope)}</span>` : ''}
         </div>
       </div>` : ''}
-
-      <div class="section">
-        <p class="section-label">${isUpdateReport ? '업데이트·캐릭터 출시 동향' : '게임 소개 및 출시 동향'}</p>
-        <div class="overview-box">
-          <p><b>${isUpdateReport ? '대상 소개 및 출시 상황' : '게임 소개'}</b><br>${escapeHtml(overview.game_summary) || '추가 확인 필요'}</p>
-          <p><b>긍정 반응 요약</b><br>${escapeHtml(overview.positive_summary) || '추가 확인 필요'}</p>
-          <p><b>부정·우려 반응 요약</b><br>${escapeHtml(overview.negative_summary) || '추가 확인 필요'}</p>
-          <p><b>출시 동향 종합</b><br>${escapeHtml(overview.service_mood) || '추가 확인 필요'}</p>
-        </div>
-      </div>
 
       ${!isUpdateReport ? `<div class="section">
         <p class="section-label">정량 지표</p>
@@ -786,6 +853,8 @@
         </table>
       </div>` : ''}
 
+      </div>
+      <div class="report-tab-panel" data-tab-panel="systems" role="tabpanel">
       <div class="section">
         <p class="section-label">${isUpdateReport ? '업데이트·캐릭터 핵심 내용' : '게임 시스템 소개'}</p>
         <div class="feature-list">
@@ -793,6 +862,8 @@
         </div>
       </div>
 
+      </div>
+      <div class="report-tab-panel" data-tab-panel="video" role="tabpanel">
       <div class="section">
         <p class="section-label">${isUpdateReport ? '업데이트·캐릭터 관련 영상 반응' : '영상 콘텐츠 반응 (유튜브 등)'}</p>
         <div class="trend-box">${escapeHtml(video.summary) || '추가 확인 필요'}${(video.points || []).length ? `<ul>${video.points.map(p=>`<li>${escapeHtml(p)}</li>`).join('')}</ul>` : ''}<div><span class="date-chip">${escapeHtml(video.date) || '날짜 미상'}</span></div>
@@ -803,6 +874,10 @@
         </div>
       </div>
 
+      ${sources.length ? `<div class="section"><p class="section-label">참고 자료</p><div class="sources">${sources.map(s => `<a href="${escapeHtml(s.u)}" target="_blank" rel="noopener">· ${escapeHtml(s.n)}</a>`).join('')}</div></div>` : ''}
+      </div>
+
+      <div class="report-tab-panel" data-tab-panel="community" role="tabpanel">
       <div class="section">
         <p class="section-label">${isUpdateReport ? '업데이트·캐릭터 관련 SNS · 커뮤니티 반응' : 'SNS · 커뮤니티 반응'}</p>
         <div class="sentiment-assessment ${sentimentKind}">
@@ -827,8 +902,7 @@
         <div class="detail-list" id="detailList">${detail.map(d => { const sent = SENT_ORDER.hasOwnProperty(d.sentiment) ? d.sentiment : 'positive'; return `<div class="detail-item ${sent}" data-sent="${sent}"><span class="detail-marker ${sent}">${SENT_MARK[sent]}</span><div class="detail-body"><b>${escapeHtml(d.label)}</b><span>${escapeHtml(d.desc)}</span></div></div>`; }).join('')}</div>
         <div style="margin-top:10px;"><span class="date-chip">${escapeHtml(sns.date) || '날짜 미상'}</span></div>
       </div>
-
-      ${sources.length ? `<div class="section"><p class="section-label">참고 자료</p><div class="sources">${sources.map(s => `<a href="${escapeHtml(s.u)}" target="_blank" rel="noopener">· ${escapeHtml(s.n)}</a>`).join('')}</div></div>` : ''}
+      </div>
     `;
   }
 
@@ -1035,6 +1109,7 @@
     const editBtn = document.getElementById('editBtn');
     const editBanner = document.getElementById('editBanner');
     const reportBody = document.getElementById('reportBody');
+    enableReportTabs(reportBody);
 
     editBtn.addEventListener('click', async () => {
       if (!isEditing){
@@ -1375,6 +1450,8 @@ ${schema}
     const clone = reportCard.cloneNode(true);
     clone.querySelector('.action-row')?.remove();
     clone.querySelector('.edit-banner')?.remove();
+    clone.querySelector('.report-tabs')?.remove();
+    clone.querySelectorAll('.report-tab-panel').forEach(panel => panel.classList.add('on'));
     clone.querySelector('#reportBody')?.removeAttribute('contenteditable');
     const styles = [...document.querySelectorAll('style')].map(style => style.textContent).join('\n');
     const page = `<!doctype html><html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>${escapeHtml(report.game || 'game')}_동향보고서</title><style>${styles}\nbody{padding:20px;background:#F4F6F9}.report-card{max-width:1180px;margin:0 auto}.app,.main{max-width:none;padding:0;display:block}</style></head><body><main class="main">${clone.outerHTML}</main></body></html>`;
@@ -1637,7 +1714,9 @@ ${schema}
     }
     const el = reportCard;
     const actionRow = el.querySelector('.action-row');
+    const reportBody = el.querySelector('#reportBody');
     if (actionRow) actionRow.style.visibility = 'hidden';
+    if (reportBody) reportBody.classList.add('export-all-tabs');
 
     try{
       // Split only at report section/card boundaries. The old exporter cropped one
@@ -1658,7 +1737,7 @@ ${schema}
         .filter(y => y > 0 && y < exportCanvas.height)
         .sort((a, b) => a - b);
       const sectionBreaks = breakPositions('.section');
-      const cardBreaks = breakPositions('.feature-item, .detail-item, .trend-box, .overview-box, .cbt-table');
+      const cardBreaks = breakPositions('.feature-item, .detail-item, .trend-box, .overview-box, .overview-summary, .reaction-summary, .game-info-table, .cbt-table');
       const bestBreak = (breaks, from, max) => breaks.filter(y => y > from + 20 && y <= max).pop();
 
       let sourceY = 0;
@@ -1710,6 +1789,7 @@ ${schema}
       alert('PDF 생성에 실패했습니다: ' + e.message);
     }finally{
       if (actionRow) actionRow.style.visibility = 'visible';
+      if (reportBody) reportBody.classList.remove('export-all-tabs');
     }
   }
 

@@ -324,37 +324,161 @@
 
   ::-webkit-scrollbar{ width:8px; }
   ::-webkit-scrollbar-thumb{ background:var(--border-strong); border-radius:8px; }
+
+  /* ---------- v2 application shell ---------- */
+  :root{
+    --bg:#F1F4FA;
+    --accent-2:#7657E8;
+    --purple-soft:#F1EEFF;
+    --sidebar-w:236px;
+  }
+  body{ min-height:100vh; background:var(--bg); }
+  button,input{ font:inherit; }
+  .shell{ display:flex; min-height:100vh; }
+  .sidebar{
+    position:fixed; inset:0 auto 0 0; z-index:20; width:var(--sidebar-w); height:100vh;
+    display:flex; flex-direction:column; padding:22px 16px 18px;
+    background:#11182B; color:#fff; box-shadow:8px 0 30px rgba(23,35,46,.08);
+  }
+  .sidebar-logo{ display:flex; align-items:center; gap:11px; padding:2px 8px 25px; }
+  .logo-mark{
+    display:grid; place-items:center; width:34px; height:34px; border-radius:11px;
+    background:linear-gradient(135deg,#4C6FFF,#8B62EE); color:#fff; font-weight:900;
+    box-shadow:0 7px 18px rgba(76,111,255,.32);
+  }
+  .sidebar-logo b{ display:block; font-size:14px; letter-spacing:-.02em; }
+  .sidebar-logo small{ display:block; margin-top:2px; color:#8E9AB7; font-size:10.5px; }
+  .nav-group-label{
+    margin:12px 10px 7px; color:#697692; font-family:var(--font-mono);
+    font-size:10px; font-weight:700; letter-spacing:.12em; text-transform:uppercase;
+  }
+  .nav-item{
+    width:100%; display:flex; align-items:center; gap:10px; padding:10px 11px;
+    border:0; border-radius:9px; background:transparent; color:#AEB8CE;
+    cursor:pointer; text-align:left; font-size:13px; transition:.15s ease;
+  }
+  .nav-item:hover,.nav-item.active{ color:#fff; background:rgba(105,126,255,.16); }
+  .nav-icon{ width:20px; text-align:center; font-size:15px; }
+  .sidebar .archive-list{ max-height:none; flex:1; overflow-y:auto; gap:6px; padding:0 2px; }
+  .sidebar .archive-item{
+    border-color:transparent; background:transparent; color:#AEB8CE; padding:9px 10px;
+  }
+  .sidebar .archive-item:hover{ border-color:rgba(255,255,255,.1); background:rgba(255,255,255,.05); }
+  .sidebar .archive-item.active{ border-color:rgba(105,126,255,.35); background:rgba(105,126,255,.17); }
+  .sidebar .archive-item-name{ color:#E8ECF6; }
+  .sidebar .archive-item-dev,.sidebar .archive-item-date,.sidebar .empty-note{ color:#7F8BA7; }
+  .sidebar .archive-item-stage{ background:rgba(183,121,31,.17); }
+  .sidebar .archive-notice{ border-color:rgba(255,255,255,.08); color:#66728C; font-size:10.5px; }
+  .sidebar-foot{ margin-top:auto; padding:14px 8px 0; border-top:1px solid rgba(255,255,255,.08); }
+  .sidebar-foot b{ display:block; color:#D9DEEB; font-size:11.5px; }
+  .sidebar-foot span{ color:#6F7B96; font-size:10.5px; }
+  .content-area{ width:calc(100% - var(--sidebar-w)); min-width:0; margin-left:var(--sidebar-w); }
+  .content-area>.topbar{
+    position:sticky; top:0; z-index:10; height:64px; margin:0; padding:0 28px;
+    border:0; border-bottom:1px solid var(--border); border-radius:0; background:rgba(255,255,255,.92);
+    backdrop-filter:blur(12px); box-shadow:none;
+  }
+  .search-box{ position:relative; width:min(460px,55vw); }
+  .search-box::before{ content:'⌕'; position:absolute; left:14px; top:50%; transform:translateY(-53%); color:#8793A6; font-size:20px; }
+  .search-box input{
+    width:100%; height:39px; padding:0 14px 0 41px; border:1px solid transparent;
+    border-radius:10px; background:#F2F5F9; color:var(--ink); outline:none; font-size:13px;
+  }
+  .search-box input:focus{ border-color:#AFC0F6; background:#fff; box-shadow:0 0 0 3px var(--accent-soft); }
+  .topbar-right{ display:flex; align-items:center; gap:11px; }
+  .topbar-status{ display:flex; align-items:center; gap:7px; color:var(--pos); font:700 10.5px var(--font-mono); letter-spacing:.06em; }
+  .topbar-status .live-dot{ width:8px; height:8px; }
+  .avatar{ display:grid; place-items:center; width:34px; height:34px; border-radius:50%; background:#E9EDFF; color:#4F61C8; font-weight:800; font-size:12px; }
+  .content-area>.main{ width:100%; max-width:1320px; margin:0 auto; padding:28px 30px 80px; display:block; }
+  .page-head{ display:flex; align-items:flex-end; justify-content:space-between; gap:20px; margin-bottom:20px; }
+  .page-head h1{ margin:0; font-size:25px; letter-spacing:-.035em; }
+  .page-head p{ margin:5px 0 0; color:var(--mute); font-size:12.5px; }
+  .page-chip{ padding:6px 10px; border:1px solid #D9DDF5; border-radius:20px; background:#F7F5FF; color:#6954C7; font:700 10.5px var(--font-mono); }
+  .grid-2col{ display:grid; grid-template-columns:minmax(0,2fr) minmax(270px,1fr); gap:18px; align-items:start; }
+  .card{ border-color:#E2E7F0; border-radius:16px; box-shadow:0 5px 18px rgba(30,43,71,.045); }
+  .form-card{ padding:25px; }
+  .form-card h2{ color:var(--ink); font-size:16px; text-transform:none; letter-spacing:-.02em; }
+  .form-hint{ padding:11px 13px; border-radius:9px; background:#F7F8FE; color:#77839A; line-height:1.6; }
+  .field-row{ gap:13px; margin-bottom:16px; }
+  .field-row label,.stage-row label.text-label{ color:#526075; font-weight:600; }
+  .optional{ font-size:11px; color:#98A3B4; }
+  .field-row input,.stage-row input[type=text]{ border-color:#DDE3ED; border-radius:10px; background:#FBFCFE; padding:11px 12px; }
+  .field-row input:hover,.stage-row input[type=text]:hover{ border-color:#BFCADB; }
+  .radio-group{ display:grid; grid-template-columns:repeat(3,1fr); gap:9px; }
+  .radio-pill{
+    min-height:66px; justify-content:center; padding:11px 10px; border-color:#DDE3ED;
+    border-radius:11px; background:#FBFCFE; text-align:center; line-height:1.35;
+  }
+  .radio-pill.selected{ border-color:#6A75EC; background:linear-gradient(135deg,#EEF3FF,#F2EEFF); color:#4859D1; box-shadow:0 4px 12px rgba(86,103,221,.10); }
+  .primary-btn{ width:100%; padding:12px 20px; border-radius:10px; background:linear-gradient(100deg,#285AE8,#7858E6); box-shadow:0 8px 18px rgba(66,83,218,.18); }
+  .research-tips{ position:sticky; top:86px; padding:22px; }
+  .research-tips h2{ margin:0 0 5px; font-size:15px; }
+  .research-tips>p{ margin:0 0 18px; color:var(--mute); font-size:12px; }
+  .tip-list{ display:grid; gap:11px; }
+  .tip-item{ display:flex; gap:11px; padding:12px; border:1px solid #E7E9F5; border-radius:11px; background:#FAFAFE; }
+  .tip-num{ display:grid; place-items:center; flex:none; width:25px; height:25px; border-radius:8px; background:var(--purple-soft); color:#725BDA; font:700 11px var(--font-mono); }
+  .tip-item b{ display:block; margin-bottom:2px; font-size:12.5px; }
+  .tip-item span{ display:block; color:#7C8799; font-size:11.5px; line-height:1.5; }
+  #reportCard{ padding:0; border:0; background:transparent; box-shadow:none; }
+  #reportCard>.report-head,#reportCard>.edit-banner,#reportCard>#reportBody{ background:#fff; border:1px solid var(--border); }
+  #reportCard>.report-head{ margin:0 0 14px; padding:22px; border-radius:16px; }
+  #reportCard>.edit-banner{ margin:0 0 14px; border-color:#E8D5AC; border-radius:11px; }
+  #reportCard>#reportBody{ padding:22px; border-radius:16px; box-shadow:0 5px 18px rgba(30,43,71,.045); }
+  .report-tabs{ padding:4px; border-radius:10px; background:#F2F4F8; }
+  .report-tab{ flex:1; border:0; background:transparent; }
+  .report-tab.on{ background:#fff; color:var(--accent); box-shadow:0 2px 7px rgba(35,48,73,.10); }
+
+  @media (max-width:980px){
+    .grid-2col{ grid-template-columns:1fr; }
+    .research-tips{ position:static; }
+  }
+  @media (max-width:760px){
+    .shell{ display:block; }
+    .sidebar{ position:static; width:100%; height:auto; padding:14px; }
+    .sidebar-logo{ padding-bottom:9px; }
+    .nav-group-label,.sidebar .archive-list,.sidebar .archive-notice,.sidebar-foot{ display:none; }
+    .content-area{ width:100%; margin-left:0; }
+    .content-area>.topbar{ padding:0 16px; }
+    .content-area>.main{ padding:20px 14px 55px; }
+    .radio-group{ grid-template-columns:1fr; }
+    .radio-pill{ min-height:48px; }
+    .report-tabs{ display:grid; grid-template-columns:1fr 1fr; }
+  }
 </style>
 </head>
 <body>
-<div class="app">
-
-  <div class="topbar">
-    <div class="brand">
-      <span class="live-dot"></span>
-      <div>
-        <h1>게임 동향 시그널 데스크</h1>
-        <p class="subtitle">팀 공용 리서치 자동화 도구 · 생성된 보고서는 팀 전체와 공유됩니다</p>
-      </div>
+<div class="shell">
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <span class="logo-mark">G</span>
+      <div><b>GAME SIGNAL</b><small>RESEARCH DESK</small></div>
     </div>
-    <span class="badge-live">ON&nbsp;AIR</span>
-  </div>
-
-  <div class="layout">
-
-    <aside class="archive">
-      <div class="archive-head">
-        <span>ARCHIVE</span>
-        <button id="newReportBtn" class="ghost-btn">+ 새 보고서</button>
-      </div>
+    <div class="nav-group-label">Workspace</div>
+    <button id="newReportBtn" class="nav-item active"><span class="nav-icon">＋</span><span>새 보고서</span></button>
+    <div class="nav-group-label">Archive</div>
       <div id="archiveList" class="archive-list">
         <p class="empty-note">불러오는 중…</p>
       </div>
       <p class="archive-notice">보고서는 해당 페이지에서만 유효합니다. 필요하신 데이터는 필히 저장해주세요.</p>
-    </aside>
+    <div class="sidebar-foot"><b>팀 공용 리서치 도구</b><span>생성된 보고서는 팀 전체와 공유됩니다</span></div>
+  </aside>
+
+  <div class="content-area">
+    <header class="topbar">
+      <div class="search-box"><input id="archiveSearchInput" type="search" placeholder="게임명 또는 개발사로 보고서 검색" aria-label="아카이브 검색" /></div>
+      <div class="topbar-right">
+        <span class="topbar-status"><span class="live-dot"></span>ON AIR</span>
+        <span class="avatar">GS</span>
+      </div>
+    </header>
 
     <main class="main">
-
+      <section id="inputView">
+        <div class="page-head">
+          <div><h1>새 보고서</h1><p>게임 출시·출시 전·업데이트 동향을 한 번에 조사합니다.</p></div>
+          <span class="page-chip">AI RESEARCH</span>
+        </div>
+        <div class="grid-2col">
       <section id="formCard" class="card form-card">
         <h2>보고서 생성</h2>
         <p class="form-hint">💡 동명(同名) 게임 혼동을 막기 위해 개발사를 함께 입력하는 것을 권장합니다. 게임의 대표 특징 키워드(예: 몬스터 합체)를 함께 적으면 정확도가 더 올라갑니다.</p>
@@ -421,9 +545,19 @@
         </div>
       </section>
 
-      <section id="reportCard" class="card report-card">
-        <div class="empty-state">게임명을 입력하고 [시그널 수집 시작]을 누르면<br/>여기에 보고서가 표시됩니다.</div>
+          <aside class="card research-tips">
+            <h2>더 정확한 리서치 팁</h2>
+            <p>보고서 품질에 직접 영향을 주는 입력만 안내합니다.</p>
+            <div class="tip-list">
+              <div class="tip-item"><span class="tip-num">01</span><div><b>개발사 입력</b><span>동명 게임이나 유사 프로젝트를 잘못 조사하는 문제를 줄입니다.</span></div></div>
+              <div class="tip-item"><span class="tip-num">02</span><div><b>특징 힌트 구체화</b><span>장르, 핵심 시스템, 대표 캐릭터 등 식별 가능한 키워드를 적어주세요.</span></div></div>
+              <div class="tip-item"><span class="tip-num">03</span><div><b>서치 포인트 좁히기</b><span>과금 반응, 경쟁작 차이처럼 확인할 질문을 명확히 지정하면 요약이 선명해집니다.</span></div></div>
+            </div>
+          </aside>
+        </div>
       </section>
+
+      <section id="reportCard" class="report-card hidden"></section>
 
     </main>
   </div>
@@ -449,7 +583,9 @@
   const statusText = document.getElementById('statusText');
   const reportCard = document.getElementById('reportCard');
   const formCard = document.getElementById('formCard');
+  const inputView = document.getElementById('inputView');
   const archiveList = document.getElementById('archiveList');
+  const archiveSearchInput = document.getElementById('archiveSearchInput');
   const newReportBtn = document.getElementById('newReportBtn');
   const progressWrap = document.getElementById('progressWrap');
   const progressFill = document.getElementById('progressFill');
@@ -460,6 +596,19 @@
   let currentReport = null;
   let isEditing = false;
   let progressTimer = null;
+  let archiveCache = [];
+
+  function showInputView(){
+    inputView.classList.remove('hidden');
+    formCard.classList.remove('hidden');
+    reportCard.classList.add('hidden');
+    newReportBtn.classList.add('active');
+  }
+  function showReportView(){
+    inputView.classList.add('hidden');
+    reportCard.classList.remove('hidden');
+    newReportBtn.classList.remove('active');
+  }
 
   // ---------- stage radio ----------
   function getStage(){
@@ -719,7 +868,16 @@
   }
 
   async function refreshArchiveList(){
-    renderArchiveList(await loadArchive());
+    archiveCache = await loadArchive();
+    filterArchiveList();
+  }
+
+  function filterArchiveList(){
+    const query = (archiveSearchInput.value || '').trim().toLowerCase();
+    const filtered = query
+      ? archiveCache.filter(item => `${item.game || ''} ${item.dev || ''}`.toLowerCase().includes(query))
+      : archiveCache;
+    renderArchiveList(filtered);
   }
 
   async function openArchivedReport(id){
@@ -735,16 +893,19 @@
     currentReport = report;
     isEditing = false;
     renderReport(report);
-    formCard.classList.add('hidden');
+    showReportView();
     refreshArchiveList();
   }
 
+  archiveSearchInput.addEventListener('input', filterArchiveList);
   newReportBtn.addEventListener('click', () => {
     if (isEditing){
       alert('기존 보고서의 수정을 먼저 완료해 주세요.');
       return;
     }
-    formCard.classList.remove('hidden');
+    currentActiveId = null;
+    showInputView();
+    refreshArchiveList();
     gameNameInput.focus();
   });
 
@@ -1089,6 +1250,7 @@
 
   function renderReport(report){
     const info = report.info || {};
+    showReportView();
     reportCard.innerHTML = `
       <div class="report-head">
         <div>
@@ -1420,13 +1582,14 @@ ${schema}
         stage: report.stage_label
       });
       await saveArchive(list);
-      renderArchiveList(list);
+      archiveCache = list;
+      filterArchiveList();
 
       isEditing = false;
       renderReport(report);
       stopProgressSim('완료');
       statusText.textContent = '✓ 보고서 생성 완료 — [내용 수정]으로 검수 후 PDF로 저장하세요';
-      formCard.classList.add('hidden');
+      showReportView();
 
     }catch(err){
       console.error(err);

@@ -5,6 +5,9 @@ import { extname, join, normalize } from 'node:path';
 const port = Number(process.env.PORT || 3000);
 const root = process.cwd();
 const model = process.env.CLAUDE_MODEL || 'claude-sonnet-5';
+const supabaseUrl = String(process.env.SUPABASE_URL || '').replace(/\/+$/, '');
+const supabaseSecretKey = process.env.SUPABASE_SECRET_KEY || '';
+const hasSupabase = Boolean(supabaseUrl && supabaseSecretKey);
 const mime = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8' };
 const send = (res, status, body, type = 'application/json; charset=utf-8') => { res.writeHead(status, { 'Content-Type': type }); res.end(typeof body === 'string' ? body : JSON.stringify(body)); };
 const hasTeamLogin = Boolean(process.env.APP_USERNAME && process.env.APP_PASSWORD);
@@ -16,6 +19,118 @@ const isAuthorized = (req, res) => {
   res.end('Team login is required.');
   return false;
 };
+
+async function readJsonBody(req, maxBytes = 2_500_000) {
+  let raw = '';
+  for await (const chunk of req) {
+    raw += chunk;
+    if (Buffer.byteLength(raw) > maxBytes) throw new Error('Request body is too large.');
+  }
+  return JSON.parse(raw || '{}');
+}
+
+async function supabaseRequest(path, { method = 'GET', body, prefer } = {}) {
+  if (!hasSupabase) {
+    const error = new Error('Supabase storage is not configured.');
+    error.status = 503;
+    throw error;
+  }
+  const response = await fetch(`${supabaseUrl}/rest/v1/${path}`, {
+    method,
+    headers: {
+      apikey: supabaseSecretKey,
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      ...(prefer ? { Prefer: prefer } : {})
+    },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) })
+  });
+  const text = await response.text();
+  let data = null;
+  try { data = text ? JSON.parse(text) : null; } catch { data = text; }
+  if (!response.ok) {
+    const error = new Error(data?.message || data?.error || `Supabase request failed (${response.status}).`);
+    error.status = response.status;
+    throw error;
+  }
+  return data;
+}
+
+function reportFields(report) {
+  const info = report?.info || {};
+  return {
+    game: String(report?.game || '제목 없음').slice(0, 300),
+    developer: String(info.dev || '').slice(0, 300),
+    overall: String(report?.sns_trend?.overall || '혼재').slice(0, 80),
+    stage: String(report?.stage_label || '').slice(0, 200),
+    generated_at: String(report?.generated_at || '').slice(0, 40),
+    updated_at: new Date().toISOString(),
+    report_data: report
+  };
+}
+
+const reportSummary = row => ({
+  id: row.id,
+  game: row.game,
+  dev: row.developer,
+  date: row.generated_at || row.created_at,
+  overall: row.overall,
+  stage: row.stage,
+  share_token: row.share_token,
+  expires_at: row.expires_at
+});
+
+async function handleReportStorage(req, res, pathname) {
+  if (req.method === 'GET' && pathname === '/api/storage-status') {
+    return send(res, 200, { configured: hasSupabase, retention_days: 7 });
+  }
+
+  if (req.method === 'GET' && pathname === '/api/reports') {
+    const now = encodeURIComponent(new Date().toISOString());
+    const rows = await supabaseRequest(`reports?select=id,game,developer,overall,stage,generated_at,created_at,expires_at,share_token&expires_at=gt.${now}&order=created_at.desc&limit=100`);
+    return send(res, 200, { reports: (rows || []).map(reportSummary) });
+  }
+
+  const reportMatch = pathname.match(/^\/api\/reports\/([^/]+)$/);
+  if (req.method === 'GET' && reportMatch) {
+    const id = encodeURIComponent(decodeURIComponent(reportMatch[1]));
+    const now = encodeURIComponent(new Date().toISOString());
+    const rows = await supabaseRequest(`reports?select=report_data,share_token,expires_at&id=eq.${id}&expires_at=gt.${now}&limit=1`);
+    if (!rows?.length) return send(res, 404, { error: 'Report not found or expired.' });
+    return send(res, 200, { report: rows[0].report_data, share_token: rows[0].share_token, expires_at: rows[0].expires_at });
+  }
+
+  if (req.method === 'POST' && pathname === '/api/reports') {
+    const { id, report } = await readJsonBody(req);
+    if (typeof id !== 'string' || !id.trim() || id.length > 400 || !report || typeof report !== 'object' || Array.isArray(report)) {
+      return send(res, 400, { error: 'A valid report id and report object are required.' });
+    }
+    const encodedId = encodeURIComponent(id);
+    const existing = await supabaseRequest(`reports?select=share_token,expires_at&id=eq.${encodedId}&limit=1`);
+    let rows;
+    if (existing?.length) {
+      rows = await supabaseRequest(`reports?id=eq.${encodedId}`, {
+        method: 'PATCH', body: reportFields(report), prefer: 'return=representation'
+      });
+    } else {
+      rows = await supabaseRequest('reports', {
+        method: 'POST', body: { id, ...reportFields(report) }, prefer: 'return=representation'
+      });
+    }
+    return send(res, 200, { id, share_token: rows?.[0]?.share_token || existing?.[0]?.share_token, expires_at: rows?.[0]?.expires_at || existing?.[0]?.expires_at });
+  }
+
+  return false;
+}
+
+async function handleSharedReport(res, pathname) {
+  const match = pathname.match(/^\/api\/shared-reports\/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i);
+  if (!match) return false;
+  const now = encodeURIComponent(new Date().toISOString());
+  const rows = await supabaseRequest(`reports?select=report_data,share_token,expires_at&share_token=eq.${encodeURIComponent(match[1])}&expires_at=gt.${now}&limit=1`);
+  if (!rows?.length) return send(res, 404, { error: 'Report not found or expired.' });
+  return send(res, 200, { report: rows[0].report_data, share_token: rows[0].share_token, expires_at: rows[0].expires_at });
+}
 
 // Claude가 web_search 도구를 쓰면 검색 결과를 인용하며 문장 안에
 // <cite index="...">...</cite> 같은 인용 태그를 그대로 끼워 넣는 경우가 있다.
@@ -80,17 +195,36 @@ async function callClaude(instructions, input, useWebSearch = true, timeoutMs = 
 }
 
 createServer(async (req, res) => {
-  if (!isAuthorized(req, res)) return;
+  const requestUrl = new URL(req.url, 'http://localhost');
+  const pathname = requestUrl.pathname;
 
-  if (req.method === 'POST' && req.url === '/api/report') {
+  try {
+    if (req.method === 'GET' && pathname.startsWith('/api/shared-reports/')) {
+      const handled = await handleSharedReport(res, pathname);
+      if (handled !== false) return;
+    }
+  } catch (error) {
+    return send(res, error.status || 500, { error: error.message || 'Shared report request failed.' });
+  }
+
+  const isPublicSharePage = req.method === 'GET' && (pathname === '/' || pathname === '/index.html') && requestUrl.searchParams.has('share');
+  if (!isPublicSharePage && !isAuthorized(req, res)) return;
+
+  if (pathname === '/api/storage-status' || pathname === '/api/reports' || pathname.startsWith('/api/reports/')) {
+    try {
+      const handled = await handleReportStorage(req, res, pathname);
+      if (handled !== false) return;
+    } catch (error) {
+      return send(res, error.status || 500, { error: error.message || 'Report storage request failed.' });
+    }
+  }
+
+  if (req.method === 'POST' && pathname === '/api/report') {
     if (!process.env.ANTHROPIC_API_KEY) return send(res, 500, { error: 'ANTHROPIC_API_KEY is not set.' });
-
-    let raw = '';
-    for await (const chunk of req) raw += chunk;
 
     let instructions, input, useWebSearch = true, timeoutMs = 360000;
     try {
-      ({ instructions, input, useWebSearch = true, timeoutMs = 360000 } = JSON.parse(raw));
+      ({ instructions, input, useWebSearch = true, timeoutMs = 360000 } = await readJsonBody(req));
       if (typeof instructions !== 'string' || typeof input !== 'string') throw new Error('Invalid request.');
       if (typeof useWebSearch !== 'boolean') throw new Error('Invalid useWebSearch value.');
       if (!Number.isInteger(timeoutMs) || timeoutMs < 30000 || timeoutMs > 360000) throw new Error('Invalid timeoutMs value.');
@@ -120,7 +254,7 @@ createServer(async (req, res) => {
   }
 
   if (req.method !== 'GET' && req.method !== 'HEAD') return send(res, 405, { error: 'Method not allowed' });
-  const requested = req.url === '/' ? '/index.html' : req.url.split('?')[0];
+  const requested = pathname === '/' ? '/index.html' : pathname;
   const file = normalize(join(root, requested));
   if (!file.startsWith(root)) return send(res, 403, { error: 'Forbidden' });
   try { const body = await readFile(file); res.writeHead(200, { 'Content-Type': mime[extname(file)] || 'application/octet-stream' }); res.end(req.method === 'HEAD' ? undefined : body); }

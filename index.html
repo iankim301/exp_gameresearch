@@ -662,7 +662,7 @@
     <div class="dock-item" data-dock-key="identity"><div class="dock-item-top"><span>게임 정체</span><span class="dock-status">대기</span></div><div class="dock-bar"><div class="dock-fill"></div></div></div>
     <div class="dock-item" data-dock-key="launch"><div class="dock-item-top"><span>출시 지표</span><span class="dock-status">대기</span></div><div class="dock-bar"><div class="dock-fill"></div></div></div>
     <div class="dock-item" data-dock-key="features"><div class="dock-item-top"><span>게임 시스템</span><span class="dock-status">대기</span></div><div class="dock-bar"><div class="dock-fill"></div></div></div>
-    <div class="dock-item" data-dock-key="steam"><div class="dock-item-top"><span>Steam 평가</span><span class="dock-status">대기</span></div><div class="dock-bar"><div class="dock-fill"></div></div></div>
+    <div class="dock-item" data-dock-key="steam"><div class="dock-item-top"><span>플랫폼 스토어 평가</span><span class="dock-status">대기</span></div><div class="dock-bar"><div class="dock-fill"></div></div></div>
     <div class="dock-item" data-dock-key="community"><div class="dock-item-top"><span>커뮤니티·영상</span><span class="dock-status">대기</span></div><div class="dock-bar"><div class="dock-fill"></div></div></div>
     <div class="dock-item" data-dock-key="synthesis"><div class="dock-item-top"><span>종합 작성</span><span class="dock-status">대기</span></div><div class="dock-bar"><div class="dock-fill"></div></div></div>
   </div>
@@ -835,6 +835,10 @@
   }
   function metricLabelKorean(label){
     const raw = String(label || '').trim();
+    if (/(google|구글).*(매출|gross)/i.test(raw)) return 'Google Play 게임 매출 순위';
+    if (/(apple|애플|app.?store).*(매출|gross)/i.test(raw)) return 'Apple App Store 게임 매출 순위';
+    if (/(google|구글).*(인기|popular|free)/i.test(raw)) return 'Google Play 게임 인기 순위';
+    if (/(apple|애플|app.?store).*(인기|popular|free)/i.test(raw)) return 'Apple App Store 게임 인기 순위';
     if (/steam.*(sales|revenue|gross|매출)/i.test(raw)) return 'Steam 매출 순위';
     if (/steam.*(concurrent|player|24.?hour|peak|동시|접속)/i.test(raw)) return 'Steam 24시간 최고 동시 접속자 수';
     if (/(sales|download|pre.?registration|preorder|판매|다운로드|사전.?예약)/i.test(raw)) return '판매량·다운로드·사전 예약자 수';
@@ -855,6 +859,26 @@
   function isOfficialSteamGlobalTopSellersSource(source){
     return /(?:https?:\/\/)?store\.steampowered\.com\/charts\/topselling\/global(?:[/?#]|$)/i.test(String(source || ''));
   }
+  function safeHttpUrl(url){
+    try{
+      const parsed = new URL(String(url || '').trim());
+      return /^https?:$/.test(parsed.protocol) ? parsed.href : '';
+    }catch(e){ return ''; }
+  }
+  function isMobileRankLabel(label){
+    return /(?:Google Play|Apple App Store|구글|애플|앱.?마켓).*(?:매출|인기).*순위/i.test(String(label || ''));
+  }
+  function isDirectMobileRankSource(item){
+    const url = safeHttpUrl(item?.source_url || item?.url || item?.source);
+    try{
+      const host = new URL(url).hostname.toLowerCase();
+      return host === 'play.google.com' || host === 'apps.apple.com' || host === 'mobileindex.com' || host.endsWith('.mobileindex.com');
+    }catch(e){ return false; }
+  }
+  function isCurrentObservation(item){
+    const observed = String(item?.observed_at || '').trim().replace(/-/g,'/');
+    return observed.startsWith(todayStr()) && /\d{4}\/\d{2}\/\d{2}\s+\d{1,2}:\d{2}\s*KST$/i.test(observed);
+  }
   function metricScope(value){
     const scope = String(value || '').trim();
     return scope && !/^(unknown|n\/?a|미상|불명|확인 불가|없음)$/i.test(scope) ? scope : '';
@@ -874,21 +898,26 @@
         return list;
       }
       const source = String(item?.source || '').trim();
+      const sourceUrl = safeHttpUrl(item?.source_url || item?.url || '');
       if (label === 'Steam 매출 순위' && !isOfficialSteamGlobalTopSellersSource(source)) {
         removed.push({ label, reason: 'Steam 공식 글로벌 Top Sellers 차트 출처를 확인할 수 없어' });
         return list;
       }
       const scope = metricScope(item?.scope);
-      if (isAppMarketRankLabel(label) && !scope) {
-        removed.push({ label, reason: `${label}의 국가·지역 범위를 확인할 수 없어` });
+      if (isMobileRankLabel(label) && (!isDirectMobileRankSource(item) || !isCurrentObservation(item))) {
+        removed.push({ label, reason: '생성 당일 Google Play·App Store·Mobile Index 직접 화면과 확인 시각을 검증할 수 없어' });
         return list;
       }
-      if (isAppMarketRankLabel(label) && /^글로벌$/i.test(scope) && !/(global|worldwide|전 세계|전세계)/i.test(source)) {
-        removed.push({ label, reason: `${label}의 글로벌 범위를 공식 출처에서 확인할 수 없어` });
+      if (isMobileRankLabel(label) && !scope) {
+        removed.push({ label, reason: '앱 마켓 순위의 국가·지역 범위를 확인할 수 없어' });
         return list;
       }
-      const displayLabel = isAppMarketRankLabel(label) && !/^글로벌$/i.test(scope) ? `${label} (${scope})` : label;
-      list.push({ label: displayLabel, value: String(item.value).trim(), source });
+      if (isMobileRankLabel(label) && /^글로벌$/i.test(scope) && !/(global|worldwide|전 세계|전세계)/i.test(source)) {
+        removed.push({ label, reason: '앱 마켓 순위의 글로벌 범위를 공식 출처에서 확인할 수 없어' });
+        return list;
+      }
+      const displayLabel = isMobileRankLabel(label) && !/^글로벌$/i.test(scope) ? `${label} (${scope})` : label;
+      list.push({ label: displayLabel, value: String(item.value).trim(), source, source_url:sourceUrl, observed_at:String(item?.observed_at || '').trim() });
       return list;
     }, []);
     (Array.isArray(metrics.unavailable_items) ? metrics.unavailable_items : []).forEach(item => {
@@ -1023,16 +1052,25 @@
     return values.every(n => Number.isInteger(n) && n >= 0) ? values.reduce((sum, n) => sum + n, 0) : null;
   }
   function helpfulReviewCount(value){
-    const count = Number(String(value ?? '').replace(/[^\d]/g, ''));
+    const raw = String(value ?? '').trim();
+    if (!raw) return null;
+    const count = Number(raw.replace(/[^\d]/g, ''));
     return Number.isSafeInteger(count) && count >= 0 ? count : null;
   }
-  function steamTopReviews(items){
+  function storeTopReviews(items, requireEngagement = false){
     return (Array.isArray(items) ? items : [])
       .filter(item => {
         const kind = sentimentClass(item?.sentiment);
-        return (kind === 'positive' || kind === 'negative') && Boolean(String(item?.summary || '').trim()) && helpfulReviewCount(item?.helpful_count) !== null;
+        const directUrl = safeHttpUrl(item?.url);
+        let officialStore = false;
+        try{
+          const host = new URL(directUrl).hostname.toLowerCase();
+          officialStore = host === 'steamcommunity.com' || host === 'play.google.com' || host === 'apps.apple.com' || host.endsWith('.playstation.com') || host.endsWith('.xbox.com') || host.endsWith('.microsoft.com') || host.endsWith('.nintendo.com');
+        }catch(e){ /* invalid URL */ }
+        const engagement = helpfulReviewCount(item?.helpful_count ?? item?.engagement_count);
+        return (kind === 'positive' || kind === 'negative') && Boolean(String(item?.summary || '').trim()) && officialStore && (!requireEngagement || engagement !== null);
       })
-      .sort((a, b) => helpfulReviewCount(b.helpful_count) - helpfulReviewCount(a.helpful_count))
+      .sort((a, b) => (helpfulReviewCount(b.helpful_count ?? b.engagement_count) ?? -1) - (helpfulReviewCount(a.helpful_count ?? a.engagement_count) ?? -1))
       .slice(0, 3);
   }
 
@@ -1196,10 +1234,11 @@
     const sampleCounts = assessment.sample_counts || {};
     const totalSampleCount = opinionSampleTotal(sampleCounts);
     const assessmentEvidence = Array.isArray(assessment.evidence) ? assessment.evidence.slice(0, 4) : [];
-    const steamRating = assessment.steam_rating || {};
+    const platformRating = assessment.platform_rating || assessment.steam_rating || {};
     const userTrend = assessment.user_trend || {};
-    const topSteamReviews = steamTopReviews(sns.steam_top_reviews);
-    const steamReviewNote = String(sns.steam_review_note || '').trim();
+    const topStoreReviews = storeTopReviews(sns.store_top_reviews || sns.steam_top_reviews, Boolean(assessment.steam_rating && !assessment.platform_rating));
+    const storeReviewNote = String(sns.store_review_note || sns.steam_review_note || '').trim();
+    const storeReviewLabel = platformRating.platform || (assessment.steam_rating ? 'Steam' : '플랫폼 스토어');
     const sentimentValue = assessment.verdict || sns.overall;
     const sentimentKind = sentimentClass(sentimentValue);
     const sentimentVerdict = sentimentLabel(sentimentValue);
@@ -1261,7 +1300,7 @@
       ${!isUpdateReport ? `<div class="section">
         <p class="section-label">정량 지표</p>
         ${metricDisplay.items.length ? `<table class="metric-table">
-          ${metricDisplay.items.map(item => `<tr><td>${escapeHtml(item.label)}</td><td><b>${escapeHtml(item.value)}</b>${item.source ? `<div class="metric-source">출처: ${escapeHtml(item.source)}</div>` : ''}</td></tr>`).join('')}
+          ${metricDisplay.items.map(item => `<tr><td>${escapeHtml(item.label)}</td><td><b>${escapeHtml(item.value)}</b>${item.source ? `<div class="metric-source">출처: ${item.source_url ? `<a href="${escapeHtml(item.source_url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.source)}</a>` : escapeHtml(item.source)}${item.observed_at ? ` · 확인 ${escapeHtml(item.observed_at)}` : ''}</div>` : ''}</td></tr>`).join('')}
         </table>` : ''}
         ${metricDisplay.note ? `<div class="metric-note">${escapeHtml(metricDisplay.note)}</div>` : ''}
       </div>` : ''}
@@ -1310,20 +1349,21 @@
         <p class="section-label">${isUpdateReport ? '업데이트·캐릭터 관련 SNS · 커뮤니티 반응' : 'SNS · 커뮤니티 반응'}</p>
         <div class="sentiment-assessment ${sentimentKind}">
           <div class="sentiment-assessment-head"><span class="overall-tag ${sentimentKind}">${escapeHtml(sentimentVerdict)}</span><b>1차 분위기 판정</b>${assessment.decision_rule ? `<span class="date-chip">${escapeHtml(assessment.decision_rule)}</span>` : ''}${assessment.confidence ? `<span class="date-chip">신뢰도 ${escapeHtml(assessment.confidence)}</span>` : ''}</div>
-          <div class="launch-signal-meta"><span>긍정 의견 ${escapeHtml(opinionCountLabel(sampleCounts.positive))}</span><span>부정 의견 ${escapeHtml(opinionCountLabel(sampleCounts.negative))}</span><span>총 표본 ${totalSampleCount === null ? '확인 불가' : `${totalSampleCount} / 50건`}</span><span>최대: 총 50건</span>${steamRating.status ? `<span>Steam 평가: ${escapeHtml(steamRating.status)}</span>` : ''}${userTrend.verdict ? `<span>유저 동향: ${escapeHtml(userTrend.verdict)}</span>` : ''}${sampleCounts.scope ? `<span>${escapeHtml(sampleCounts.scope)}</span>` : ''}</div>
+          <div class="launch-signal-meta"><span>긍정 의견 ${escapeHtml(opinionCountLabel(sampleCounts.positive))}</span><span>부정 의견 ${escapeHtml(opinionCountLabel(sampleCounts.negative))}</span><span>총 표본 ${totalSampleCount === null ? '확인 불가' : `${totalSampleCount} / 50건`}</span><span>최대: 총 50건</span>${platformRating.status ? `<span>${escapeHtml(storeReviewLabel)} 평가: ${escapeHtml(platformRating.status)}</span>` : ''}${userTrend.verdict ? `<span>유저 동향: ${escapeHtml(userTrend.verdict)}</span>` : ''}${sampleCounts.scope ? `<span>${escapeHtml(sampleCounts.scope)}</span>` : ''}</div>
           <div class="launch-signal-body">${summaryListHtml(assessment.summary || '수집한 공개 반응 표본을 기준으로 판단한 결과입니다. 세부 근거는 아래 반응 항목을 확인해 주세요.', assessment.basis ? `근거: ${assessment.basis}` : '')}</div>
-          ${assessmentEvidence.length ? `<div class="sentiment-evidence">${assessmentEvidence.map(e => `<div class="sentiment-evidence-item"><b>${escapeHtml(e.source || '판정 증거')}</b>${e.reliability ? ` · 신뢰도 ${escapeHtml(e.reliability)}` : ''}${e.direction ? ` · ${escapeHtml(sentimentLabel(e.direction))}` : ''}${e.detail ? ` — ${escapeHtml(e.detail)}` : ''}</div>`).join('')}</div>` : ''}
+          ${assessmentEvidence.length ? `<div class="sentiment-evidence">${assessmentEvidence.map(e => { const evidenceUrl=safeHttpUrl(e.url); const sourceName=escapeHtml(e.source || '판정 증거'); return `<div class="sentiment-evidence-item">${evidenceUrl ? `<a href="${escapeHtml(evidenceUrl)}" target="_blank" rel="noopener noreferrer"><b>${sourceName}</b></a>` : `<b>${sourceName}</b>`}${e.reliability ? ` · 신뢰도 ${escapeHtml(e.reliability)}` : ''}${e.direction ? ` · ${escapeHtml(sentimentLabel(e.direction))}` : ''}${e.detail ? ` — ${escapeHtml(e.detail)}` : ''}</div>`; }).join('')}</div>` : ''}
         </div>
-        ${(topSteamReviews.length || steamReviewNote) ? `<div class="steam-top-reviews">
-          <p class="steam-top-reviews-title">Steam 추천 수 상위 유저 리뷰</p>
-          ${topSteamReviews.length ? `<div class="steam-top-review-list">${topSteamReviews.map(review => {
+        ${(topStoreReviews.length || storeReviewNote) ? `<div class="steam-top-reviews">
+          <p class="steam-top-reviews-title">${escapeHtml(storeReviewLabel)} 주요 유저 리뷰</p>
+          ${topStoreReviews.length ? `<div class="steam-top-review-list">${topStoreReviews.map(review => {
             const kind = sentimentClass(review.sentiment);
             const label = kind === 'positive' ? '긍정' : '부정';
-            const helpful = helpfulReviewCount(review.helpful_count);
+            const helpful = helpfulReviewCount(review.helpful_count ?? review.engagement_count);
             const playtime = String(review.playtime || '').trim();
-            return `<div class="steam-top-review ${kind}"><b>${label} 주요 의견은 “${escapeHtml(review.summary)}”이다.</b><small>Steam 가장 유용함 기준 · 추천 ${helpful}명${playtime ? ` · 플레이 ${escapeHtml(playtime)}` : ''}</small></div>`;
+            const engagement = helpful === null ? '' : ` · 반응 ${helpful}명`;
+            return `<div class="steam-top-review ${kind}"><b>${label} 주요 의견은 “${escapeHtml(review.summary)}”이다.</b><small>${escapeHtml(storeReviewLabel)} 직접 유저 리뷰${engagement}${playtime ? ` · 플레이 ${escapeHtml(playtime)}` : ''}</small></div>`;
           }).join('')}</div>` : ''}
-          ${steamReviewNote ? `<p class="steam-top-review-note">${escapeHtml(steamReviewNote)}</p>` : ''}
+          ${storeReviewNote ? `<p class="steam-top-review-note">${escapeHtml(storeReviewNote)}</p>` : ''}
         </div>` : ''}
         <div class="quick-tags">${(sns.quick_pos||[]).map(p=>`<span class="quick-tag pos">▲ ${escapeHtml(p)}</span>`).join('')}${(sns.quick_neg||[]).map(n=>`<span class="quick-tag neg">▼ ${escapeHtml(n)}</span>`).join('')}</div>
         <div class="detail-list" id="detailList">${detail.map(d => { const sent = SENT_ORDER.hasOwnProperty(d.sentiment) ? d.sentiment : 'positive'; return `<div class="detail-item ${sent}" data-sent="${sent}"><span class="detail-marker ${sent}">${SENT_MARK[sent]}</span><div class="detail-body"><b>${escapeHtml(d.label)}</b><span>${escapeHtml(d.desc)}</span></div></div>`; }).join('')}</div>
@@ -1517,11 +1557,12 @@
   function reportStatCardsHtml(report){
     const metrics = metricDisplayData(report.metrics || {}).items.slice(0,2);
     const colors = ['','purple'];
-    const cards = metrics.map((item,index) => `<div class="stat-card ${colors[index]}"><div class="label">${escapeHtml(item.label)}</div><div class="value">${escapeHtml(item.value)}</div><div class="source">${escapeHtml(item.source || '출처 확인 필요')}</div></div>`);
-    const steam = report.sns_trend?.assessment?.steam_rating || {};
-    const steamStatus = String(steam.status || '미확인');
-    const steamColor = /negative/i.test(steamStatus) ? 'red' : /positive/i.test(steamStatus) ? 'green' : /mixed/i.test(steamStatus) ? 'amber' : '';
-    cards.push(`<div class="stat-card ${steamColor}"><div class="label">Steam 리뷰 평가</div><div class="value">${escapeHtml(steamStatus)}</div><div class="source">${escapeHtml(steam.summary || '공식 평가 확인 필요')}</div></div>`);
+    const cards = metrics.map((item,index) => `<div class="stat-card ${colors[index]}"><div class="label">${escapeHtml(item.label)}</div><div class="value">${escapeHtml(item.value)}</div><div class="source">${escapeHtml([item.source,item.observed_at ? `확인 ${item.observed_at}` : ''].filter(Boolean).join(' · ') || '출처 확인 필요')}</div></div>`);
+    const rating = report.sns_trend?.assessment?.platform_rating || report.sns_trend?.assessment?.steam_rating || {};
+    const ratingStatus = String(rating.status || '미확인');
+    const ratingColor = /negative|부정/i.test(ratingStatus) ? 'red' : /positive|긍정/i.test(ratingStatus) ? 'green' : /mixed|혼재|복합/i.test(ratingStatus) ? 'amber' : '';
+    const ratingLabel = rating.platform ? `${rating.platform} 평가` : (report.sns_trend?.assessment?.steam_rating ? 'Steam 리뷰 평가' : '플랫폼 스토어 평가');
+    cards.push(`<div class="stat-card ${ratingColor}"><div class="label">${escapeHtml(ratingLabel)}</div><div class="value">${escapeHtml(ratingStatus)}</div><div class="source">${escapeHtml(rating.summary || '공식 평가 확인 필요')}</div></div>`);
     return cards.join('');
   }
 
@@ -1642,15 +1683,15 @@
     schema = '{"game":"","info":{"genre":"","dev":"","pub":"","platform":"","engine":"","release":"","note":""},"launch_signal":{"phase":"출시 1일차|출시 후 N일|출시 전","data_sufficiency":"충분|제한적","attention":"낮음|보통|높음","community_posts":"확인된 공개 게시글 수 또는 확인 불가","youtube_videos":"확인된 관련 영상 수 또는 확인 불가","scope":"집계 사이트·기간","summary":"초기 동향을 설명하는 한국어 문장"},"overview":{"game_summary":"","positive_summary":"","negative_summary":"","service_mood":""},"features":[{"title":"","category":"in_game","points":["",""]}],"video_trend":{"summary":"","points":["",""],"official_pv":[{"title":"","channel":"","url":"https://www.youtube.com/..."}],"review_videos":[{"title":"","channel":"","url":"https://www.youtube.com/..."}],"date":"YYYY/MM/DD"},"sns_trend":{"overall":"긍정 우세|부정 우세|혼재","assessment":{"verdict":"긍정 우세|부정 우세|혼재","confidence":"높음|보통|낮음","decision_rule":"Steam 매우 긍정 이상|긍정 표본 과반|부정 표본 과반|과반 없음","summary":"전체 분위기와 소수 의견을 함께 설명하는 한국어 문장","basis":"Steam 평점·공개 표본 수·공감 수·반복 언급을 근거로 한 한국어 문장"},"quick_pos":["",""],"quick_neg":["",""],"detail":[{"label":"","sentiment":"positive|negative|mixed","desc":""}],"date":"YYYY/MM/DD"},"metrics":{"items":[{"label":"","value":"","source":""}],"unavailable_items":[{"label":"","reason":""}],"date":"YYYY/MM/DD","note":""},"sources":[{"n":"","u":""}]';
     schema = schema.replace(
       '"basis":"Steam 평점·공개 표본 수·공감 수·반복 언급을 근거로 한 한국어 문장"}',
-      '"basis":"Steam 평가와 신뢰도 높은 유저 동향을 종합한 한국어 문장","steam_rating":{"status":"Mixed|Mostly Positive|Mostly Negative|미확인","summary":"공식 등급·리뷰 수·긍정 비율","url":"https://store.steampowered.com/app/..."},"user_trend":{"verdict":"긍정 우세|부정 우세|혼재","summary":"신뢰도 높은 유저 동향의 방향과 근거"},"sample_counts":{"positive":0,"negative":0,"mixed":0,"scope":"실제 집계한 유저 반응 출처·기간"},"evidence":[{"source":"Steam 전체 사용자 평가","reliability":"높음","direction":"positive|negative|mixed","detail":"공식 등급·리뷰 수·긍정 비율","url":"https://store.steampowered.com/app/..."}]}'
+      '"basis":"플랫폼 공식 평가와 신뢰도 높은 유저 동향을 종합한 한국어 문장","platform_rating":{"platform":"Steam|Google Play|Apple App Store|PlayStation Store|Microsoft Store|Nintendo eShop|공식 스토어","status":"","summary":"공식 평점·평가 수·긍정 비율 중 직접 확인한 값","url":"https://..."},"user_trend":{"verdict":"긍정 우세|부정 우세|혼재","summary":"신뢰도 높은 유저 동향의 방향과 근거"},"sample_counts":{"positive":0,"negative":0,"mixed":0,"scope":"실제 집계한 유저 반응 출처·기간"},"evidence":[{"source":"플랫폼 공식 평가 또는 직접 유저 게시글","reliability":"높음","direction":"positive|negative|mixed","detail":"직접 확인한 근거","url":"https://..."}]}'
     );
     schema = schema.replace(
       '"items":[{"label":"","value":"","source":""}],"unavailable_items"',
-      '"items":[{"label":"","value":"","source":"","scope":"글로벌 또는 국가명"}],"unavailable_items"'
+      '"items":[{"label":"","value":"","source":"","source_url":"https://...","scope":"글로벌 또는 국가명","observed_at":"YYYY/MM/DD HH:mm KST"}],"unavailable_items"'
     );
     schema = schema.replace(
       '"detail":[{"label":"","sentiment":"positive|negative|mixed","desc":""}],"date":"YYYY/MM/DD"}',
-      '"detail":[{"label":"","sentiment":"positive|negative|mixed","desc":""}],"steam_top_reviews":[{"sentiment":"positive|negative","summary":"추천 수 상위 Steam 리뷰의 핵심 의견 요약","helpful_count":0,"playtime":"확인한 경우만","url":"https://steamcommunity.com/..."}],"steam_review_note":"3개 미만일 때만 사유","date":"YYYY/MM/DD"}'
+      '"detail":[{"label":"","sentiment":"positive|negative|mixed","desc":"","source":"","source_type":"community_post|forum_user_post|store_review|video_comment","url":"https://..."}],"sampled_opinions":[{"sentiment":"positive|negative|mixed","source":"","source_type":"community_post|forum_user_post|store_review|video_comment","url":"https://..."}],"store_top_reviews":[{"sentiment":"positive|negative","summary":"플랫폼 일반 유저 리뷰의 핵심 의견 요약","engagement_count":0,"playtime":"확인한 경우만","url":"https://..."}],"store_review_note":"3개 미만일 때만 사유","date":"YYYY/MM/DD"}'
     );
     if (isCbt){
       schema += ',"cbt_info":{"history":[{"name":"","period":"","region":"","note":""}],"pv_schedule":[{"title":"","date":"","note":""}]}';
@@ -1688,6 +1729,12 @@ ${isUpdate ? `
 - cbt_info.pv_schedule에 공식 PV/트레일러/쇼케이스 공개 일정(제목, 공개일 YYYY/MM/DD, 비고)을 정리하세요.
 - metrics는 출시 전이므로 사전예약자 수, 위시리스트 수 등 확인 가능한 지표를 대신 기재하세요.` : ''}
 
+[플랫폼별 조사 경로 - 필수]
+- 먼저 공식 배포 채널을 확인해 Steam, 모바일, 콘솔, 멀티플랫폼 중 하나로 분류하세요. Steam 관련 규칙은 실제 Steam 출시 게임에만 적용합니다.
+- 모바일 게임은 Google Play와 Apple App Store를 각각 조사합니다. 인기 순위와 매출 순위는 다른 지표이므로 절대 혼용하지 마세요. 현재 순위는 생성 당일 Google Play·Apple App Store·Mobile Index 직접 화면에서 확인한 경우만 source_url, 국가, KST 확인 시각과 함께 작성하세요. 기사·보도자료·검색 결과 요약이 인용한 순위는 현재 순위 근거로 사용할 수 없습니다.
+- 콘솔 독점 게임은 PlayStation Store, Microsoft Store/Xbox, Nintendo eShop 중 실제 출시 스토어의 공식 평점·평가 수를 사용합니다. 공식 스토어가 사용자 리뷰를 제공하지 않으면 임의로 채우지 마세요.
+- 유저 반응은 공식 홈페이지 자유게시판·유저 포럼, 디시인사이드 해당 게임 갤러리, 인벤 게시판, 플랫폼 일반 유저 리뷰, Reddit·아카라이브·유튜브 직접 댓글 순으로 찾으세요. 각 감성 근거에는 유저 작성 페이지의 직접 URL이 있어야 합니다. 뉴스·웹진·마케팅 기사는 사실 확인에만 사용합니다.
+
 [깊이 있는 조사]
 - 실제 게임을 플레이하지 않고도 이해할 수 있을 정도로 구체적으로 작성하세요.
 - features는 3~4개 항목, 각 항목마다 points 2~4개. 수치·경쟁작 비교·실제 조작 방식 포함.
@@ -1695,12 +1742,12 @@ ${isUpdate ? `
 - 웹진·게임 전문 매체·뉴스 기사·보도자료의 평론/호평/비평은 긍정·부정 유저 동향 표본에 포함하지 마세요. 이 자료는 출시일·개발사·기능 등 사실 확인과 sources에만 사용할 수 있으며, sns_trend.overall·assessment·quick_pos·quick_neg·detail의 감성 근거로 쓰면 안 됩니다.
 - 유저 의견 표본은 Steam의 실제 사용자 평가/리뷰, 유저가 작성한 커뮤니티 게시글·댓글, 사용자 리뷰, 영상 댓글처럼 개인 유저가 직접 남긴 발화만 사용하세요. 공식 계정, 인플루언서 광고, 언론사/웹진 기사는 제외하세요. 뉴스 기사에 인용·요약된 유저 반응이 아니라, 디시인사이드(해당 게임 마이너 갤러리), 인벤 게시판, 루리웹, 공식 홈페이지·카페의 자유게시판 등을 직접 검색해("게임명 갤러리", "게임명 인벤", "게임명 공식카페" 등) 원문 게시글·댓글을 확인하세요. evidence와 sources의 url은 실제 커뮤니티 게시글·댓글 URL이어야 하며 뉴스 기사 URL로 대체하면 안 됩니다.
 - 긍정·부정·복합을 합쳐 최대 50개의 서로 다른 확인 가능한 유저 의견만 조사하세요. 50건보다 많은 자료를 찾더라도 대표성이 있는 실제 유저 의견 50건까지만 분류하고, assessment.sample_counts.positive/negative/mixed의 합계는 절대 50을 넘기지 마세요. 각 값에는 실제로 읽고 분류한 개수만 0 이상의 정수로 넣고, 자료가 50건 미만이면 추측으로 채우지 말고 실제 개수를 적으세요. sample_counts.scope에는 실제 집계 사이트와 기간을 적으세요.
-- "앱 마켓 인기 순위"와 "앱 마켓 매출 순위"는 서로 다른 지표이니 절대 하나로 합치지 말고 각각 별도 항목으로 작성하세요. 둘 다 국가별 순위인 경우가 많으므로 scope에 반드시 "일본", "한국", "미국"처럼 국가명을 넣으세요. 글로벌 순위라는 공식 근거가 있을 때만 scope를 "글로벌"로 쓸 수 있습니다. 국가·지역을 확인하지 못하면 항목을 제외하세요. 이 두 지표는 시시각각 변하므로 뉴스 기사 하나만 믿지 말고 모바일인덱스(mobileindex.com), 구글 플레이·앱스토어의 실시간 순위 페이지를 직접 검색해 확인하고, 기사보다 더 최신 시점의 실시간 값이 있으면 그 값을 채택하세요.
+- 모바일 순위는 Google Play/Apple App Store와 인기/매출을 각각 분리한 label을 사용하세요. scope에는 국가명을, source_url에는 생성 당일 직접 확인한 Google Play·Apple App Store·Mobile Index URL을, observed_at에는 KST 확인 시각을 적으세요. 기사 인용 순위는 금지하며 직접 출처·국가·당일 시각 중 하나라도 없으면 unavailable_items로 보내세요.
 - launch_signal은 반드시 작성하세요. 공식 출시일과 오늘 날짜를 비교해 phase를 정하고, 커뮤니티 게시글·유튜브 관련 영상은 실제로 확인·집계한 공개 표본의 수만 기재하세요. 정확한 전체 건수를 알 수 없으면 "확인 불가"로 쓰고 scope에 집계 사이트·기간을 적으세요. 숫자를 추측하지 마세요.
 - 출시 1일차에는 게임 소개를 길게 쓰지 마세요. launch_signal.summary에서 먼저 데이터량과 주목도를 판단하세요. 데이터가 제한적이고 활동량이 적다면 "출시 1일차로 데이터가 충분히 쌓이지 않았으며, 수집한 공개 표본에서 커뮤니티 게시글 X개·유튜브 관련 영상 Y개가 확인돼 초기 유저 반응 및 주목도가 낮다"는 취지로 구체적으로 적으세요. 활동량이 충분하면 1차 분위기 판정과 주요 긍정/부정 의견을 함께 적으세요. 확인하지 못한 X/Y는 숫자로 채우지 마세요.
-- sns_trend.assessment는 반드시 작성하세요. assessment.verdict와 overall에는 "긍정 우세", "부정 우세", "혼재" 중 하나를 넣고, decision_rule에는 실제로 적용한 종합 판정 기준을 적으세요. Steam 등급 하나나 긍정/부정 건수 하나만으로 종합 판정을 내리지 마세요. Steam 게임은 assessment.steam_rating에 Steam 공식 전체 평가의 등급·리뷰 수·긍정 비율·직접 URL을, assessment.user_trend에 Steam 최근 평가·추천 수가 높은 유저 리뷰·공감/댓글이 있는 커뮤니티 반응을 종합한 유저 동향 방향과 근거를 각각 적으세요. Steam 평가가 "Mixed/복합적"이어도, 신뢰도 높은 유저 동향이 뚜렷하게 긍정 또는 부정이면 최종 verdict는 "긍정 우세" 또는 "부정 우세"가 될 수 있습니다. 반대로 두 증거가 모두 엇갈리거나 근거가 약하면 "혼재"로 판정하세요. 댓글/공감이 없는 단일 게시글과 검색 결과 요약은 보조 참고일 뿐 우세 판정의 핵심 근거가 될 수 없습니다.
-- assessment.summary는 반드시 "Steam 평가: [등급·핵심 수치] / 유저 동향: [긍정 우세·부정 우세·혼재와 신뢰 근거] / 종합: [최종 판정]" 순서로 작성하세요. 긍정 우세일 때는 전체 유저 동향이 긍정적인 이유와 일부 불만을, 부정 우세일 때는 주요 부정 이유와 일부 호평을 함께 적으세요. basis에는 Steam 평가와 유저 동향을 어떻게 함께 반영했는지 구체적 수치와 함께 적으세요. assessment.evidence에는 2~4개의 판정 증거를 source, reliability(높음/보통), direction, detail, url로 넣으세요. 첫 증거는 가능하면 Steam 공식 전체 평가여야 합니다. 뉴스·웹진·보도자료·인플루언서 콘텐츠의 호평/비평은 evidence, basis, overall, detail 어느 곳에도 감성 증거로 쓰지 마세요. 표본 수·공감 수·플레이 시간은 실제로 확인한 값만 적고 지어내지 마세요.
-- Steam 게임은 sns_trend.steam_top_reviews도 작성하세요. Steam 공식 리뷰 페이지에서 정렬을 "가장 유용함"으로 두고, 실제 추천 수(도움됨/유용함)가 높은 서로 다른 일반 유저 리뷰를 최대 3개 선정합니다. 각 항목에는 sentiment(positive 또는 negative), summary(따옴표 없이 한국어 한 문장 핵심 요약), helpful_count(실제로 확인한 0 이상의 정수), playtime(확인한 경우만), 직접 리뷰 url을 넣으세요. 추천 수가 검증되지 않은 리뷰, 큐레이터·뉴스·웹진·인플루언서 리뷰는 절대 넣지 마세요. 긍정/부정을 균형 맞추기 위해 임의로 고르지 말고 추천 수 순으로만 고르세요. 3개를 확인할 수 없으면 확인한 개수만 넣고 steam_review_note에 이유를 적으세요. 추천 수·플레이 시간·리뷰 내용을 절대 지어내지 마세요.
+- sns_trend.assessment는 반드시 작성하세요. assessment.verdict와 overall에는 "긍정 우세", "부정 우세", "혼재" 중 하나를 넣으세요. assessment.platform_rating에는 실제 출시 플랫폼의 공식 스토어에서 확인한 평점·평가 수·직접 URL만 쓰고, assessment.user_trend에는 직접 연결 가능한 일반 유저 게시글·리뷰·댓글을 종합한 방향과 근거를 적으세요. 공식 평점 하나나 단순 표본 건수 하나만으로 종합 판정을 내리지 마세요. 서로 충돌하거나 직접 유저 근거가 약하면 "혼재"와 낮은 신뢰도로 판정하세요.
+- assessment.summary는 반드시 "플랫폼 평가: [실제 스토어와 핵심 수치] / 유저 동향: [긍정 우세·부정 우세·혼재와 직접 근거] / 종합: [최종 판정]" 순서로 작성하세요. basis에는 플랫폼 평가와 직접 유저 동향을 어떻게 함께 반영했는지 적으세요. assessment.evidence에는 2~4개의 직접 URL이 있는 판정 증거를 넣으세요. 뉴스·웹진·보도자료·인플루언서 콘텐츠의 호평/비평은 evidence, basis, overall, detail 어느 곳에도 감성 증거로 쓰지 마세요.
+- sns_trend.store_top_reviews에는 실제 출시 플랫폼의 일반 유저 리뷰를 최대 3개 작성하세요. Steam이면 Most Helpful 추천 수 순으로만 고르고, 모바일·콘솔이면 공식 스토어에서 직접 확인 가능한 리뷰만 사용하세요. 각 항목에 sentiment, summary, 확인된 engagement_count, playtime(확인한 경우만), 직접 URL을 넣으세요. 검증되지 않은 리뷰·수치·URL은 만들지 말고 store_review_note에 제한 사유를 적으세요.
 - video_trend.points에는 영상/스트리밍에서 관찰되는 구체적 경향 2~3개.
 - video_trend.official_pv에는 공식 유튜브 채널이 올린 PV·트레일러 링크를 1~2개 기재하세요. video_trend.review_videos에는 실제 리뷰·분석·첫인상 영상의 유튜브 링크를 2~3개 기재하세요. 각 항목은 title, channel, url을 포함하며 url에는 실제 https YouTube 영상 링크만 넣으세요. 검색 결과에서 실제 링크를 확인하지 못한 영상은 절대 추측하거나 채우지 마세요.
 
@@ -1714,12 +1761,12 @@ ${schema}
 
 [REQUIRED REPORT RULES]
 - This is a launch-trend report, not a generic game summary. overview.game_summary describes the game and its current launch/test context in 2-3 sentences. overview.positive_summary and overview.negative_summary separately summarize actual player sentiment. overview.service_mood ends with a concise assessment of the overall launch/service situation, including confidence and the main watchpoint.
-- metrics.items must use Korean labels only and must be in this order when data is applicable: "Steam 매출 순위", "Steam 24시간 최고 동시 접속자 수", "판매량·다운로드·사전 예약자 수", "앱 마켓 인기 순위", "앱 마켓 매출 순위". Steam 매출 순위는 반드시 Steam 공식 글로벌 Top Sellers 차트(https://store.steampowered.com/charts/topselling/global)에서 직접 확인한 순위만 사용하세요. 일본·한국 등 지역 Steam 차트, gamebiz.jp 같은 지역 기사, 지역별 차트 인용문은 Steam 매출 순위의 근거로 절대 사용하지 마세요. Steam 매출 순위의 source에는 반드시 위 공식 글로벌 URL, "글로벌", 확인 날짜를 함께 넣으세요. 이 URL을 실제로 확인하지 못하면 Steam 매출 순위 항목을 제외하세요. For Steam player data, use SteamDB's "24-hour peak" only; never use the current player count. "앱 마켓 인기 순위"(다운로드/인기 기준)와 "앱 마켓 매출 순위"는 서로 다른 지표이므로 절대 하나로 합치지 말고 각각 별도 항목으로 작성하세요. 애플 앱스토어와 구글 플레이스토어의 순위가 서로 다르면 "앱 마켓 인기 순위"/"앱 마켓 매출 순위"로 뭉뚱그리지 말고 "애플 앱스토어 인기 순위", "애플 앱스토어 매출 순위", "구글 플레이스토어 인기 순위", "구글 플레이스토어 매출 순위"처럼 마켓별로 각각 작성하세요. 모바일 게임의 이 지표들은 시시각각 변동하므로 뉴스 기사 하나만 보고 확정하지 말고 모바일인덱스(mobileindex.com), 구글 플레이 스토어·애플 앱스토어의 실시간 순위 페이지를 직접 검색해 확인하세요. 기사에 보도된 순위가 몇 시간 이상 지난 시점이라면 반드시 더 최신 시점의 실시간 순위를 다시 확인하고, 최신 값과 기사 값이 다르면 최신 값을 채택하되 source에 확인 시각과 기사 시점의 차이를 함께 적으세요. Each value must be a very short number-focused statement only (for example: "1위", "10만 명", "사전 예약자 1,600만 명"). Put the source name, page, and date or URL in source, which is shown on the second line. Do not put English labels or explanations in value and do not invent numbers.
-- App-market rankings are normally country-specific. Every "앱 마켓 인기 순위" or "앱 마켓 매출 순위" item must include a non-empty scope field. For a country-specific ranking, scope must be the Korean country name (for example "일본", "한국", or "미국"), and the report will display it beside the metric label. Use scope "글로벌" only when an official source explicitly publishes a global rank. Never present a country-specific App Store or Google Play rank as a global rank. If the country or global scope cannot be verified, omit the metric and add it to unavailable_items with a Korean reason.
+- metrics.items must use Korean labels only and keep Steam, Google Play, and Apple App Store metrics separate. Steam 매출 순위는 반드시 Steam 공식 글로벌 Top Sellers 차트(https://store.steampowered.com/charts/topselling/global)에서 직접 확인한 순위만 사용하세요. For Steam player data, use SteamDB's "24-hour peak" only. Mobile popularity/free rankings and grossing/revenue rankings are different metrics and must never be combined. Each value must be a short number-focused statement only and must not be invented.
+- Mobile rankings must separate Google Play from Apple App Store and grossing/revenue from popularity/free charts. Require a country scope, a same-day KST observed_at, and a direct source_url on play.google.com, apps.apple.com, or mobileindex.com. A newspaper, webzine, press release, or search-result snippet is never a valid current-rank source. If direct verification fails, omit the metric and add it to unavailable_items.
 - Never write "Not available", "N/A", "확인 필요", or similar placeholders in metrics.items. If an applicable metric cannot be verified, omit it from items and add it to metrics.unavailable_items using its Korean label and a concise Korean reason, for example {"label":"Steam 매출 순위","reason":"출시 전이라 Steam 차트 데이터가 없어"}. The report will show a bottom note explaining that those items were excluded.
 - For video_trend.official_pv, provide 1-2 verified HTTPS YouTube links from the official publisher/developer/game channel only. For video_trend.review_videos, provide 2-3 verified HTTPS YouTube links to independent review, analysis, or first-impression videos; do not use reuploads, shorts, search pages, channel pages, or fabricated URLs. Use an empty array when a verified link is unavailable.
-- sns_trend.overall and sns_trend.assessment.verdict must be exactly one of "긍정 우세", "부정 우세", or "혼재". The final verdict must combine, not replace, two separate signals: assessment.steam_rating (official Steam category, review count, positive percentage, and actual URL) and assessment.user_trend (the direction supported by high-trust user feedback). A Steam "Mixed" category does not automatically force "혼재": when recent Steam reviews, helpful user reviews with verified engagement/playtime, and engaged user community evidence clearly point one way, the final verdict may be "긍정 우세" or "부정 우세". Use "혼재" when these signals conflict materially or trustworthy evidence is insufficient. assessment.summary must follow this exact order: "Steam 평가: ... / 유저 동향: ... / 종합: ..." and explain the final direction. assessment.evidence must contain 2-4 concrete signals with source, reliability (높음|보통), direction, detail, and an actual URL; include the official Steam review page whenever available. assessment.sample_counts are transparency context only, not the sole verdict rule. Count only direct user-authored feedback: Steam user reviews, user community posts/comments, user reviews, and video comments. Editorials, webzine/news articles, press releases, official accounts, and sponsored influencer content may be used for factual sources but never for sentiment counts, verdict evidence, basis, or sentiment detail. Inspect and classify at most 50 distinct user opinions in total. assessment.sample_counts.positive, .negative, and .mixed must be non-negative integers representing only the observations actually inspected, and their sum must never exceed 50. If fewer than 50 observations are available, report the actual count without estimates. Never fabricate review counts, post counts, likes, playtime, or engagement.
-- For Steam games, populate sns_trend.steam_top_reviews with up to three distinct ordinary user reviews selected strictly by the highest verified helpful/recommendation count in Steam's "Most Helpful" order. Each item needs sentiment (positive or negative), a one-sentence Korean summary with no quotation marks, helpful_count as the verified non-negative integer, playtime only when verified, and the direct Steam review URL. Do not balance sentiments artificially: rank by helpful count only. Never use a curator, news, webzine, influencer, or a review whose helpful count cannot be verified. If fewer than three eligible reviews can be verified, return only those reviews and state the reason in steam_review_note. Never invent review text, helpful counts, playtime, or URLs.
+- sns_trend.overall and sns_trend.assessment.verdict must be exactly one of "긍정 우세", "부정 우세", or "혼재". Combine assessment.platform_rating for the actual Steam, mobile, or console store with assessment.user_trend from direct user-authored feedback. The summary order is "플랫폼 평가: ... / 유저 동향: ... / 종합: ...". Count only direct user-authored feedback whose post, review, or comment URL was inspected. Editorials, webzine/news articles, press releases, official accounts, and sponsored influencer content may be used for factual sources but never for sentiment counts, verdict evidence, basis, or sentiment detail. Never fabricate counts, likes, playtime, engagement, or URLs.
+- Populate sns_trend.store_top_reviews only with verified ordinary user reviews from the game's actual store. Apply Steam Most Helpful ordering only to Steam games. For mobile and console games, use the relevant official store and do not create Steam placeholders.
 - launch_signal must describe the launch phase, evidence sufficiency, observed community-post and YouTube-video activity, and an evidence-limited early trend summary. On release day, prioritize this signal over a generic game introduction. If observed activity is low or evidence is insufficient, explicitly say so rather than inferring a broad player sentiment.
 - features must contain in-game playable systems only: combat, characters, progression, exploration, collection, multiplayer, controls, or other gameplay mechanics. Never include CBT schedules, login/invitation issues, beta data wipes, rewards, compensation, events, operations, monetization, or retention design in features.
 - A favorable or unfavorable player reaction to service/reward/compensation/retention design belongs in sns_trend.detail with the correct sentiment. Factual test schedules and official operations belong in cbt_info, not features.
@@ -1779,7 +1826,7 @@ ${schema}
     return data.text;
   }
 
-  async function callReportTask(instructions,input,useWebSearch=true,timeoutMs=180000){
+  async function callReportTask(instructions,input,useWebSearch=true,timeoutMs=180000,useMobileIndex=false){
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), timeoutMs + 10000);
     try{
@@ -1787,7 +1834,7 @@ ${schema}
         method:'POST',
         headers:{'Content-Type':'application/json'},
         signal:controller.signal,
-        body:JSON.stringify({instructions,input,useWebSearch,timeoutMs})
+        body:JSON.stringify({instructions,input,useWebSearch,timeoutMs,useMobileIndex})
       });
       const data = await response.json();
       if (!response.ok || data.error) throw new Error(data.error || '조사 요청에 실패했습니다');
@@ -1814,6 +1861,99 @@ ${extra}
     }).slice(0,12);
   }
 
+  function researchModeFromIdentity(identity){
+    const declared = String(identity?.research_mode || '').toLowerCase();
+    if (['steam','mobile','console','multiplatform','other'].includes(declared)) return declared;
+    const platform = String(identity?.info?.platform || '').toLowerCase();
+    const hasSteam = /steam|스팀/.test(platform);
+    const hasMobile = /android|ios|mobile|모바일|google play|app store/.test(platform);
+    const hasConsole = /playstation|xbox|nintendo|switch|ps[45]|콘솔/.test(platform);
+    const count = [hasSteam,hasMobile,hasConsole].filter(Boolean).length;
+    if (count > 1) return 'multiplatform';
+    if (hasSteam) return 'steam';
+    if (hasMobile) return 'mobile';
+    if (hasConsole) return 'console';
+    return 'other';
+  }
+
+  function storeResearchInstructions(mode){
+    if (mode === 'steam') return 'Steam 공식 전체 평가와 Most Helpful 일반 유저 리뷰를 조사하세요. 추천 수·리뷰 수·플레이 시간·직접 URL을 실제 확인한 값만 쓰세요.';
+    if (mode === 'mobile') return 'Google Play와 Apple App Store의 공식 앱 페이지에서 별점·평가 수와 실제 일반 사용자 리뷰를 조사하세요. 기사·웹진·광고성 리뷰는 제외하고, 스토어에서 직접 확인하지 못한 리뷰 문구나 수치는 만들지 마세요.';
+    if (mode === 'console') return 'PlayStation Store, Microsoft Store/Xbox, Nintendo eShop 중 실제 출시된 공식 스토어의 평점·평가 수·일반 사용자 리뷰만 조사하세요. 사용자 리뷰를 제공하지 않는 스토어라면 그 사실을 명시하고 커뮤니티 반응으로 대체하지 마세요.';
+    return '실제 출시된 공식 PC·모바일·콘솔 스토어를 먼저 확인하고, 해당 스토어에서 직접 검증 가능한 평점·평가 수·일반 사용자 리뷰만 조사하세요. Steam 미출시 게임에 Steam 자료를 요구하거나 만들지 마세요.';
+  }
+
+  function sanitizeMetricPayload(metrics){
+    const source = metrics && typeof metrics === 'object' ? metrics : {items:[]};
+    const kept = [];
+    const rejected = [];
+    (Array.isArray(source.items) ? source.items : []).forEach(item => {
+      const one = metricDisplayData({items:[item],date:source.date});
+      if (one.items.length) kept.push(item);
+      else rejected.push({label:metricLabelKorean(item?.label),reason:'직접 출처·지역·확인 시각 검증 기준을 통과하지 못해'});
+    });
+    return {...source,items:kept,unavailable_items:[...(source.unavailable_items||[]),...rejected]};
+  }
+
+  function removeUnverifiedMobileRankClaims(text){
+    const parts = String(text || '').split(/(?<=[.!?])\s+|\n+/).filter(Boolean);
+    return parts.filter(part => !/(?:매출|인기)[^.!?]{0,30}\d+위|양대[^.!?]{0,20}(?:매출|마켓)[^.!?]{0,20}\d+위/i.test(part)).join(' ');
+  }
+
+  function sanitizeLaunchResult(result){
+    const rawMetrics = result?.metrics || {items:[]};
+    const rawMobileRanks = (rawMetrics.items || []).filter(item => isMobileRankLabel(metricLabelKorean(item?.label)));
+    const metrics = sanitizeMetricPayload(rawMetrics);
+    const keptMobileRanks = (metrics.items || []).filter(item => isMobileRankLabel(metricLabelKorean(item?.label)));
+    const launchSignal = {...(result?.launch_signal || {})};
+    if (rawMobileRanks.length && !keptMobileRanks.length){
+      launchSignal.summary = removeUnverifiedMobileRankClaims(launchSignal.summary) || '모바일 마켓 순위는 생성 당일 직접 출처와 확인 시각을 검증하지 못해 보고서에서 제외했습니다.';
+    }
+    return {...result,metrics,launch_signal:launchSignal};
+  }
+
+  function isDirectUserEvidence(item){
+    const url = safeHttpUrl(item?.url);
+    if (!url) return false;
+    const type = String(item?.source_type || '').toLowerCase();
+    if (/news|webzine|press|official_account|influencer|advertorial|기사|보도/.test(type)) return false;
+    const parsed = new URL(url);
+    const host = parsed.hostname.toLowerCase();
+    const path = parsed.pathname.toLowerCase();
+    if (host.includes('dcinside.com')) return /\/board\/|\/mgallery\//.test(path);
+    if (host.includes('inven.co.kr')) return /\/board\/|\/bbs\//.test(path) && !/\/webzine\/news/.test(path);
+    if (host.includes('ruliweb.com')) return /\/community\/|\/board\//.test(path) && !/\/news\//.test(path);
+    if (host === 'reddit.com' || host.endsWith('.reddit.com')) return /\/comments\//.test(path);
+    if (host === 'arca.live') return /\/b\//.test(path);
+    if (host === 'steamcommunity.com') return /recommended|reviews/.test(path);
+    if (host === 'play.google.com' || host === 'apps.apple.com') return /store\/apps\/details|\/app\//.test(path);
+    if (host === 'youtube.com' || host.endsWith('.youtube.com')) return parsed.searchParams.has('lc');
+    return /community_post|forum_user_post|store_review|video_comment/.test(type) && !/notice|news|press|guide/.test(path);
+  }
+
+  function sanitizeCommunityResult(result){
+    const sns = {...(result?.sns_trend || {})};
+    const assessment = {...(sns.assessment || {})};
+    const opinions = (Array.isArray(sns.sampled_opinions) ? sns.sampled_opinions : []).filter(isDirectUserEvidence);
+    const seen = new Set();
+    const distinct = opinions.filter(item => { const key=safeHttpUrl(item.url); if(seen.has(key)) return false; seen.add(key); return true; }).slice(0,50);
+    const counts = {positive:0,negative:0,mixed:0};
+    distinct.forEach(item => { const kind=sentimentClass(item.sentiment); if (counts[kind] !== undefined) counts[kind]++; });
+    const details = (Array.isArray(sns.detail) ? sns.detail : []).filter(isDirectUserEvidence).slice(0,6);
+    const evidence = (Array.isArray(assessment.evidence) ? assessment.evidence : []).filter(isDirectUserEvidence).slice(0,4);
+    assessment.evidence = evidence;
+    assessment.sample_counts = {...counts,scope:distinct.length ? `${distinct.length}개의 직접 연결 가능한 유저 게시글·리뷰·댓글` : '직접 연결 가능한 유저 의견을 확인하지 못함'};
+    if (!distinct.length){
+      assessment.user_trend = {verdict:'혼재',summary:'기사나 공식 홍보 문구를 제외한 직접 유저 발화 근거가 부족해 방향을 판정하지 않았습니다.'};
+    }
+    sns.assessment = assessment;
+    sns.detail = details;
+    sns.quick_pos = details.filter(item=>sentimentClass(item.sentiment)==='positive').map(item=>item.desc).slice(0,4);
+    sns.quick_neg = details.filter(item=>sentimentClass(item.sentiment)==='negative').map(item=>item.desc).slice(0,4);
+    sns.sampled_opinions = distinct;
+    return {...result,sns_trend:sns};
+  }
+
   async function runBlueprintResearch(userMsg,isCbt,isUpdate,baseReport,onUpdate){
     const partial = { ...baseReport, info:{}, launch_signal:{}, overview:{}, features:[], video_trend:{}, sns_trend:{assessment:{}}, metrics:{items:[]}, sources:[] };
     const readyTabs = new Set();
@@ -1826,36 +1966,42 @@ ${extra}
     setDockStep('identity','active',55);
     notify('1/3 · 게임 정체를 확인하고 있습니다.');
     const identity = await callReportTask(
-      blueprintTaskPrompt('게임 정체 확인','{"game":"","info":{"genre":"","dev":"","pub":"","platform":"","engine":"","release":"","note":""},"sources":[{"n":"","u":""}]}','게임 식별 링크가 있으면 해당 페이지의 앱 ID·게임명·개발사 정보를 최우선 기준으로 정확히 같은 게임인지 확정하세요. 링크가 없으면 게임명 검색 결과를 여러 출처에서 교차 확인하세요.'),
+      blueprintTaskPrompt('게임 정체 및 플랫폼 확인','{"game":"","research_mode":"steam|mobile|console|multiplatform|other","distribution_channels":["Steam|Google Play|Apple App Store|PlayStation Store|Microsoft Store|Nintendo eShop|공식 런처"],"info":{"genre":"","dev":"","pub":"","platform":"","engine":"","release":"","note":""},"sources":[{"n":"","u":""}]}','게임 식별 링크가 있으면 해당 페이지의 앱 ID·게임명·개발사 정보를 최우선 기준으로 정확히 같은 게임인지 확정하세요. 공식 배포 채널을 확인해 research_mode를 판정하세요. Steam 미출시 모바일·콘솔 게임을 steam으로 분류하지 마세요. info.note에는 식별상 주의점만 쓰고 순위·흥행·유저 반응은 쓰지 마세요.'),
       userMsg
     );
     partial.game = identity.game || partial.game;
     partial.info = identity.info || {};
     partial.sources = mergeSources(identity.sources || []);
+    partial.research_mode = researchModeFromIdentity(identity);
+    partial.distribution_channels = Array.isArray(identity.distribution_channels) ? identity.distribution_channels : [];
     setDockStep('identity','done',100);
     ['launch','features','steam','community'].forEach(key => setDockStep(key,'active',20));
-    notify('2/3 · 출시 지표·게임 시스템·Steam·커뮤니티/영상을 병렬 조사 중입니다.');
-    const identityContext = `${userMsg}\n확정된 게임 정보: ${JSON.stringify(identity)}`;
+    notify('2/3 · 출시 지표·게임 시스템·플랫폼 스토어·커뮤니티/영상을 병렬 조사 중입니다.');
+    const researchMode = researchModeFromIdentity(identity);
+    const identityContext = `${userMsg}\n확정된 게임 정보: ${JSON.stringify(identity)}\n플랫폼 조사 모드: ${researchMode}`;
 
     const launchPromise = callReportTask(
-      blueprintTaskPrompt('출시 지표와 정량 데이터','{"launch_signal":{"phase":"","data_sufficiency":"충분|제한적","attention":"낮음|보통|높음","community_posts":"","youtube_videos":"","scope":"","summary":""},"metrics":{"items":[{"label":"","value":"","source":"","scope":""}],"unavailable_items":[{"label":"","reason":""}],"date":"YYYY/MM/DD","note":""},"cbt_info":{"history":[],"pv_schedule":[]},"sources":[{"n":"","u":""}]}','Steam 매출 순위는 공식 글로벌 Top Sellers, 동접은 SteamDB 24-hour peak만 사용하세요. 앱 마켓 순위에는 국가 범위를 반드시 적으세요. 확인 불가 항목은 items에 넣지 마세요. 모바일 게임의 "앱 마켓 인기 순위"와 "앱 마켓 매출 순위"는 서로 다른 지표이므로 반드시 각각 별도 항목으로 작성하세요. 애플 앱스토어와 구글 플레이스토어의 순위가 서로 다르면 "애플 앱스토어 인기 순위", "애플 앱스토어 매출 순위", "구글 플레이스토어 인기 순위", "구글 플레이스토어 매출 순위"처럼 마켓별로 각각 작성하세요. 두 지표 모두 뉴스 기사 하나만 믿지 말고 모바일인덱스(mobileindex.com), 구글 플레이 스토어·애플 앱스토어의 실시간 인기/매출 순위 페이지를 직접 검색해 확인하세요. 뉴스 기사가 몇 시간 이상 지난 시점의 스냅샷일 수 있으니, 기사 인용과 방금 확인한 실시간 순위가 다르면 반드시 더 최신인 실시간 순위를 채택하고 source에 확인 시각과 기사 시점의 차이를 함께 적으세요.'), identityContext
-    ).then(result => { partial.launch_signal=result.launch_signal||{}; partial.metrics=result.metrics||{items:[]}; if(result.cbt_info) partial.cbt_info=result.cbt_info; partial.sources=mergeSources(partial.sources,result.sources||[]); setDockStep('launch','done',100); notify('2/3 · 출시 지표 완료 · 나머지 영역을 계속 조사 중입니다.'); return result; }).catch(error => { warnings.push(`출시 지표: ${error.message}`); setDockStep('launch','error',100); notify('2/3 · 출시 지표는 제한됨 · 나머지 영역을 계속 조사 중입니다.'); return {_error:error.message}; });
+      blueprintTaskPrompt('플랫폼별 출시 지표와 정량 데이터','{"launch_signal":{"phase":"","data_sufficiency":"충분|제한적","attention":"낮음|보통|높음","community_posts":"","youtube_videos":"","scope":"","summary":""},"metrics":{"items":[{"label":"Google Play 게임 매출 순위|Apple App Store 게임 매출 순위|Google Play 게임 인기 순위|Apple App Store 게임 인기 순위|Steam 매출 순위|Steam 24시간 최고 동시 접속자 수|판매량·다운로드·사전 예약자 수","value":"","source":"직접 확인한 서비스와 화면명","source_url":"https://...","scope":"한국 등 국가명","observed_at":"YYYY/MM/DD HH:mm KST"}],"unavailable_items":[{"label":"","reason":""}],"date":"YYYY/MM/DD","note":""},"cbt_info":{"history":[],"pv_schedule":[]},"sources":[{"n":"","u":""}]}',`플랫폼 조사 모드는 ${researchMode}입니다. 해당 플랫폼에 존재하는 지표만 조사하세요. 모바일에서는 인기 순위와 매출 순위를 절대 혼용하지 말고 Google Play와 Apple App Store를 각각 별도 항목으로 작성하세요. Mobile Index MCP 도구가 제공되면 웹 기사보다 먼저 호출해 최신 실측 순위를 확인하세요. 모바일 현재 순위는 생성 당일 Google Play·Apple App Store·Mobile Index의 직접 화면 또는 MCP 실측 결과에서 확인한 경우만 items에 넣고 source_url과 KST 확인 시각을 필수로 적으세요. 기사·보도자료·검색 결과 요약이 인용한 순위는 현재 순위의 근거로 금지합니다. 직접 순위와 기사 수치가 충돌하면 직접 순위를 채택하고 충돌 사실만 note에 남기세요. 직접 확인할 수 없으면 unavailable_items로 보내세요. Steam 매출 순위는 공식 글로벌 Top Sellers, 동접은 SteamDB 24-hour peak만 사용하세요.`), identityContext, true, 180000, researchMode === 'mobile' || researchMode === 'multiplatform'
+    ).then(rawResult => { const result=sanitizeLaunchResult(rawResult); partial.launch_signal=result.launch_signal||{}; partial.metrics=result.metrics||{items:[]}; if(result.cbt_info) partial.cbt_info=result.cbt_info; partial.sources=mergeSources(partial.sources,result.sources||[]); setDockStep('launch','done',100); notify('2/3 · 출시 지표 완료 · 나머지 영역을 계속 조사 중입니다.'); return result; }).catch(error => { warnings.push(`출시 지표: ${error.message}`); setDockStep('launch','error',100); notify('2/3 · 출시 지표는 제한됨 · 나머지 영역을 계속 조사 중입니다.'); return {_error:error.message}; });
     const featuresPromise = callReportTask(
       blueprintTaskPrompt('게임 시스템','{"features":[{"title":"","category":"in_game","points":[""]}],"sources":[{"n":"","u":""}]}','실제로 플레이하는 전투·성장·탐험·수집·멀티플레이 시스템만 3~4개 작성하고 운영·보상·과금 내용은 제외하세요.'), identityContext
     ).then(result => { partial.features=result.features||[]; partial.sources=mergeSources(partial.sources,result.sources||[]); readyTabs.add('systems'); setDockStep('features','done',100); notify('2/3 · 게임 시스템 완료 · 해당 탭을 먼저 확인할 수 있습니다.'); return result; }).catch(error => { warnings.push(`게임 시스템: ${error.message}`); setDockStep('features','error',100); notify('2/3 · 게임 시스템은 제한됨 · 나머지 영역을 계속 조사 중입니다.'); return {_error:error.message}; });
     const steamPromise = callReportTask(
-      blueprintTaskPrompt('Steam 공식 평가와 상위 유저 리뷰','{"sns_trend":{"assessment":{"steam_rating":{"status":"","summary":"","url":""},"evidence":[{"source":"","reliability":"높음|보통","direction":"positive|negative|mixed","detail":"","url":""}]},"steam_top_reviews":[{"sentiment":"positive|negative","summary":"","helpful_count":0,"playtime":"","url":""}],"steam_review_note":""},"sources":[{"n":"","u":""}]}','Steam 공식 전체 평가와 Most Helpful 일반 유저 리뷰만 사용하세요. 추천 수·리뷰 수·플레이 시간·URL을 실제 확인하지 못하면 만들지 마세요.'), identityContext
-    ).then(result => { const sns=result.sns_trend||{}; partial.sns_trend={...partial.sns_trend,...sns,assessment:{...(partial.sns_trend.assessment||{}),...(sns.assessment||{})}}; partial.sources=mergeSources(partial.sources,result.sources||[]); setDockStep('steam','done',100); notify('2/3 · Steam 평가 완료 · 커뮤니티와 영상 조사를 계속합니다.'); return result; }).catch(error => { warnings.push(`Steam 평가: ${error.message}`); setDockStep('steam','error',100); notify('2/3 · Steam 평가는 제한됨 · 나머지 영역을 계속 조사 중입니다.'); return {_error:error.message}; });
+      blueprintTaskPrompt('플랫폼 공식 스토어 평가와 유저 리뷰','{"sns_trend":{"assessment":{"platform_rating":{"platform":"Steam|Google Play|Apple App Store|PlayStation Store|Microsoft Store|Nintendo eShop|공식 스토어","status":"","summary":"공식 평점·평가 수·긍정 비율 중 직접 확인한 값","url":"https://..."},"evidence":[{"source":"","reliability":"높음|보통","direction":"positive|negative|mixed","detail":"","url":""}]},"store_top_reviews":[{"sentiment":"positive|negative","summary":"","engagement_count":0,"playtime":"","url":"https://..."}],"store_review_note":""},"sources":[{"n":"","u":""}]}',storeResearchInstructions(researchMode)), identityContext
+    ).then(result => { const sns=result.sns_trend||{}; partial.sns_trend={...partial.sns_trend,...sns,assessment:{...(partial.sns_trend.assessment||{}),...(sns.assessment||{})}}; partial.sources=mergeSources(partial.sources,result.sources||[]); setDockStep('steam','done',100); notify('2/3 · 플랫폼 스토어 평가 완료 · 커뮤니티와 영상 조사를 계속합니다.'); return result; }).catch(error => { warnings.push(`플랫폼 스토어 평가: ${error.message}`); setDockStep('steam','error',100); notify('2/3 · 플랫폼 스토어 평가는 제한됨 · 나머지 영역을 계속 조사 중입니다.'); return {_error:error.message}; });
     const communityPromise = callReportTask(
-      blueprintTaskPrompt('커뮤니티 유저 반응과 영상','{"video_trend":{"summary":"","points":[""],"official_pv":[{"title":"","channel":"","url":""}],"review_videos":[{"title":"","channel":"","url":""}],"date":"YYYY/MM/DD"},"sns_trend":{"quick_pos":[""],"quick_neg":[""],"detail":[{"label":"","sentiment":"positive|negative|mixed","desc":""}],"assessment":{"user_trend":{"verdict":"긍정 우세|부정 우세|혼재","summary":""},"sample_counts":{"positive":0,"negative":0,"mixed":0,"scope":""},"evidence":[{"source":"","reliability":"높음|보통","direction":"positive|negative|mixed","detail":"","url":""}]}},"sources":[{"n":"","u":""}]}','서로 다른 실제 유저 의견을 합계 최대 50건만 분류하세요. 웹진·뉴스·공식 계정·광고 콘텐츠는 감성 표본에서 제외하세요. 영상 URL은 검증된 HTTPS YouTube 직접 링크만 작성하세요. 유저 표본은 뉴스 기사에 인용·요약된 반응이 아니라 실제 커뮤니티에서 직접 찾으세요: 디시인사이드(해당 게임 마이너 갤러리), 인벤 게시판, 루리웹, 공식 홈페이지·카페의 자유게시판 등을 "게임명 갤러리", "게임명 인벤", "게임명 공식카페", "게임명 반응" 같은 검색어로 직접 검색해 원문 게시글·댓글을 확인하세요. sources와 evidence의 url은 뉴스 기사 URL이 아니라 실제로 확인한 커뮤니티 게시글·댓글의 URL이어야 합니다.'), identityContext
-    ).then(result => { const sns=result.sns_trend||{}; const priorAssessment=partial.sns_trend.assessment||{}; partial.video_trend=result.video_trend||{}; partial.sns_trend={...partial.sns_trend,...sns,assessment:{...priorAssessment,...(sns.assessment||{}),evidence:[...(priorAssessment.evidence||[]),...(sns.assessment?.evidence||[])]}}; partial.sources=mergeSources(partial.sources,result.sources||[]); readyTabs.add('community'); readyTabs.add('video'); setDockStep('community','done',100); notify('2/3 · 커뮤니티·영상 완료 · 종합 판정을 준비합니다.'); return result; }).catch(error => { warnings.push(`커뮤니티·영상: ${error.message}`); setDockStep('community','error',100); notify('2/3 · 커뮤니티·영상은 제한됨 · 종합 판정을 준비합니다.'); return {_error:error.message}; });
+      blueprintTaskPrompt('커뮤니티 유저 반응과 영상','{"video_trend":{"summary":"","points":[""],"official_pv":[{"title":"","channel":"","url":""}],"review_videos":[{"title":"","channel":"","url":""}],"date":"YYYY/MM/DD"},"sns_trend":{"quick_pos":[""],"quick_neg":[""],"detail":[{"label":"","sentiment":"positive|negative|mixed","desc":"","source":"","source_type":"community_post|forum_user_post|store_review|video_comment","url":"https://..."}],"sampled_opinions":[{"sentiment":"positive|negative|mixed","source":"","source_type":"community_post|forum_user_post|store_review|video_comment","url":"https://..."}],"assessment":{"user_trend":{"verdict":"긍정 우세|부정 우세|혼재","summary":""},"sample_counts":{"positive":0,"negative":0,"mixed":0,"scope":""},"evidence":[{"source":"","source_type":"community_post|forum_user_post|store_review|video_comment","reliability":"높음|보통","direction":"positive|negative|mixed","detail":"","url":"https://..."}]}},"sources":[{"n":"","u":""}]}',`플랫폼 조사 모드는 ${researchMode}입니다. 뉴스 검색부터 하지 말고 1) 공식 홈페이지 자유게시판·유저 포럼 2) 디시인사이드 해당 게임 갤러리 3) 인벤 게시판·루리웹 커뮤니티 4) 플랫폼 스토어 일반 사용자 리뷰 5) Reddit·아카라이브·유튜브 직접 댓글 순으로 찾으세요. 각 유저 의견은 실제 게시글·리뷰·댓글의 직접 URL과 source_type이 있어야 합니다. 서로 다른 직접 URL의 의견만 sampled_opinions에 최대 50건 넣으세요. 웹진·신문·뉴스·보도자료·공식 계정·마케팅 기사·인플루언서 평론은 감성 표본, detail, evidence에서 전부 제외하세요. 유저 근거가 부족하면 기사로 채우지 말고 데이터 부족이라고 쓰세요. 영상 URL은 검증된 HTTPS YouTube 직접 링크만 작성하세요.`), identityContext
+    ).then(rawResult => { const result=sanitizeCommunityResult(rawResult); const sns=result.sns_trend||{}; const priorAssessment=partial.sns_trend.assessment||{}; partial.video_trend=result.video_trend||{}; partial.sns_trend={...partial.sns_trend,...sns,assessment:{...priorAssessment,...(sns.assessment||{}),evidence:[...(priorAssessment.evidence||[]),...(sns.assessment?.evidence||[])]}}; partial.sources=mergeSources(partial.sources,result.sources||[]); readyTabs.add('community'); readyTabs.add('video'); setDockStep('community','done',100); notify('2/3 · 커뮤니티·영상 완료 · 종합 판정을 준비합니다.'); return result; }).catch(error => { warnings.push(`커뮤니티·영상: ${error.message}`); setDockStep('community','error',100); notify('2/3 · 커뮤니티·영상은 제한됨 · 종합 판정을 준비합니다.'); return {_error:error.message}; });
 
     const [launch,features,steam,community] = await Promise.all([launchPromise,featuresPromise,steamPromise,communityPromise]);
+    const verifiedCommunityCount = Array.isArray(community?.sns_trend?.sampled_opinions) ? community.sns_trend.sampled_opinions.length : 0;
+    if (partial.launch_signal) partial.launch_signal.community_posts = verifiedCommunityCount ? `${verifiedCommunityCount}건 직접 확인` : '직접 확인 가능한 표본 없음';
+    if (launch?.launch_signal) launch.launch_signal.community_posts = partial.launch_signal.community_posts;
     setDockStep('synthesis','active',55);
     notify('3/3 · 조사 결과를 교차 검증해 개요와 최종 판정을 작성 중입니다.');
     const synthesisInput = JSON.stringify({identity,launch,features,steam,community});
     const synthesis = await callReportTask(
-      `당신은 한국 게임 분석팀의 편집장입니다. 제공된 4개 조사 결과만 사용해 서로 충돌하는 근거를 교차 검토하고 최종 판정과 개요를 작성하세요. 새 사실이나 수치를 만들지 마세요. overview는 게임 정보와 출시 맥락, 긍정 반응, 부정·우려 반응, 출시 동향 종합을 각각 명확히 요약합니다. assessment.summary는 반드시 "Steam 평가: ... / 유저 동향: ... / 종합: ..." 순서입니다. 코드블록 없이 다음 JSON만 반환하세요: {"overview":{"game_summary":"","positive_summary":"","negative_summary":"","service_mood":""},"assessment":{"verdict":"긍정 우세|부정 우세|혼재","confidence":"높음|보통|낮음","decision_rule":"","summary":"","basis":""}}`,
+      `당신은 한국 게임 분석팀의 편집장입니다. 제공된 4개 조사 결과만 사용해 서로 충돌하는 근거를 교차 검토하고 최종 판정과 개요를 작성하세요. 새 사실이나 수치를 만들지 마세요. 플랫폼 조사 모드는 ${researchMode}입니다. Steam 미출시 게임에 Steam 평가를 요구하지 마세요. 모바일 순위는 launch.metrics.items에 검증을 통과해 남아 있는 직접 지표만 언급하고, 제거되었거나 unavailable_items에 있는 기사 인용 순위를 overview·assessment에 쓰지 마세요. 유저 동향은 community.sns_trend에 검증 후 남은 직접 유저 게시글·리뷰·댓글만 근거로 사용하며 뉴스·웹진의 평가를 감성 근거로 되살리지 마세요. overview는 게임 정보와 출시 맥락, 긍정 반응, 부정·우려 반응, 출시 동향 종합을 각각 명확히 요약합니다. assessment.summary는 반드시 "플랫폼 평가: ... / 유저 동향: ... / 종합: ..." 순서입니다. 코드블록 없이 다음 JSON만 반환하세요: {"overview":{"game_summary":"","positive_summary":"","negative_summary":"","service_mood":""},"assessment":{"verdict":"긍정 우세|부정 우세|혼재","confidence":"높음|보통|낮음","decision_rule":"","summary":"","basis":""}}`,
       synthesisInput,false,120000
     );
     partial.overview=synthesis.overview||{};
@@ -2124,10 +2270,11 @@ ${extra}
     const sampleCounts = assessment.sample_counts || {};
     const totalSampleCount = opinionSampleTotal(sampleCounts);
     const assessmentEvidence = Array.isArray(assessment.evidence) ? assessment.evidence.slice(0, 4) : [];
-    const steamRating = assessment.steam_rating || {};
+    const platformRating = assessment.platform_rating || assessment.steam_rating || {};
     const userTrend = assessment.user_trend || {};
-    const topSteamReviews = steamTopReviews(sns.steam_top_reviews);
-    const steamReviewNote = String(sns.steam_review_note || '').trim();
+    const topStoreReviews = storeTopReviews(sns.store_top_reviews || sns.steam_top_reviews, Boolean(assessment.steam_rating && !assessment.platform_rating));
+    const storeReviewNote = String(sns.store_review_note || sns.steam_review_note || '').trim();
+    const storeReviewLabel = platformRating.platform || (assessment.steam_rating ? 'Steam' : '플랫폼 스토어');
     const sentimentValue = assessment.verdict || sns.overall;
     const sentimentVerdict = sentimentLabel(sentimentValue);
     const isUpdateReport = report.report_mode === 'update';
@@ -2189,7 +2336,9 @@ ${extra}
         lines.push(`| 지표 | 값 | 출처 |`);
         lines.push(`|---|---|---|`);
         metricDisplay.items.forEach(item => {
-          lines.push(`| ${mdEscape(item.label)} | ${mdEscape(item.value)} | ${mdEscape(item.source || '-')} |`);
+          const sourceText = [item.source || '-', item.observed_at ? `확인 ${item.observed_at}` : ''].filter(Boolean).join(' · ');
+          const sourceCell = item.source_url ? `[${mdEscape(sourceText)}](${item.source_url})` : mdEscape(sourceText);
+          lines.push(`| ${mdEscape(item.label)} | ${mdEscape(item.value)} | ${sourceCell} |`);
         });
         lines.push('');
       }
@@ -2242,7 +2391,7 @@ ${extra}
       `긍정 의견 ${opinionCountLabel(sampleCounts.positive)}`,
       `부정 의견 ${opinionCountLabel(sampleCounts.negative)}`,
       `총 표본 ${totalSampleCount === null ? '확인 불가' : `${totalSampleCount} / 50건`}`,
-      steamRating.status ? `Steam 평가: ${steamRating.status}` : '',
+      platformRating.status ? `${storeReviewLabel} 평가: ${platformRating.status}` : '',
       userTrend.verdict ? `유저 동향: ${userTrend.verdict}` : '',
       sampleCounts.scope || ''
     ].filter(Boolean);
@@ -2257,15 +2406,15 @@ ${extra}
       });
       lines.push('');
     }
-    if (topSteamReviews.length || steamReviewNote){
-      lines.push(`**Steam 추천 수 상위 유저 리뷰**`);
-      topSteamReviews.forEach(review => {
+    if (topStoreReviews.length || storeReviewNote){
+      lines.push(`**${mdEscape(storeReviewLabel)} 주요 유저 리뷰**`);
+      topStoreReviews.forEach(review => {
         const label = sentimentClass(review.sentiment) === 'positive' ? '긍정' : '부정';
-        const helpful = helpfulReviewCount(review.helpful_count);
+        const helpful = helpfulReviewCount(review.helpful_count ?? review.engagement_count);
         const playtime = String(review.playtime || '').trim();
-        lines.push(`- ${label} 주요 의견은 "${mdEscape(review.summary)}"이다. _(추천 ${helpful}명${playtime ? ` · 플레이 ${mdEscape(playtime)}` : ''})_`);
+        lines.push(`- ${label} 주요 의견은 "${mdEscape(review.summary)}"이다.${helpful === null ? '' : ` _(반응 ${helpful}명${playtime ? ` · 플레이 ${mdEscape(playtime)}` : ''})_`}`);
       });
-      if (steamReviewNote) lines.push(`\n> ${mdEscape(steamReviewNote)}`);
+      if (storeReviewNote) lines.push(`\n> ${mdEscape(storeReviewNote)}`);
       lines.push('');
     }
     const quickTags = [...(sns.quick_pos || []).map(p => `▲ ${p}`), ...(sns.quick_neg || []).map(n => `▼ ${n}`)];

@@ -17,3 +17,7 @@ services:
         value: https://qvyquokwbsbvqrkcjcuo.supabase.co
       - key: SUPABASE_SECRET_KEY
         sync: false
+      - key: MOBILE_INDEX_MCP_URL
+        sync: false
+      - key: MOBILE_INDEX_MCP_TOKEN
+        sync: false

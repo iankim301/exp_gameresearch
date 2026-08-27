@@ -8,6 +8,9 @@ const model = process.env.CLAUDE_MODEL || 'claude-sonnet-5';
 const supabaseUrl = String(process.env.SUPABASE_URL || '').replace(/\/+$/, '');
 const supabaseSecretKey = process.env.SUPABASE_SECRET_KEY || '';
 const hasSupabase = Boolean(supabaseUrl && supabaseSecretKey);
+const mobileIndexMcpUrl = String(process.env.MOBILE_INDEX_MCP_URL || '').trim();
+const mobileIndexMcpToken = String(process.env.MOBILE_INDEX_MCP_TOKEN || '').trim();
+const hasMobileIndex = Boolean(mobileIndexMcpUrl && mobileIndexMcpToken);
 const mime = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8' };
 const send = (res, status, body, type = 'application/json; charset=utf-8') => { res.writeHead(status, { 'Content-Type': type }); res.end(typeof body === 'string' ? body : JSON.stringify(body)); };
 const hasTeamLogin = Boolean(process.env.APP_USERNAME && process.env.APP_PASSWORD);
@@ -82,7 +85,7 @@ const reportSummary = row => ({
 
 async function handleReportStorage(req, res, pathname) {
   if (req.method === 'GET' && pathname === '/api/storage-status') {
-    return send(res, 200, { configured: hasSupabase, retention_days: 7 });
+    return send(res, 200, { configured: hasSupabase, retention_days: 7, mobile_index_configured: hasMobileIndex });
   }
 
   if (req.method === 'GET' && pathname === '/api/reports') {
@@ -147,9 +150,14 @@ function stripCitationTags(text) {
 // 응답이 max_tokens로 잘렸을 때도 같은 방식으로 이어쓰기를 요청한다.
 const MAX_ROUNDS = 6;
 
-async function callClaude(instructions, input, useWebSearch = true, timeoutMs = 360000) {
+async function callClaude(instructions, input, useWebSearch = true, timeoutMs = 360000, useMobileIndex = false) {
   const messages = [{ role: 'user', content: input }];
   let lastText = '';
+  const useMobileIndexMcp = useMobileIndex && hasMobileIndex;
+  const enabledTools = [
+    ...(useWebSearch ? [{ type: 'web_search_20250305', name: 'web_search' }] : []),
+    ...(useMobileIndexMcp ? [{ type: 'mcp_toolset', mcp_server_name: 'mobile-index' }] : [])
+  ];
 
   for (let round = 0; round < MAX_ROUNDS; round++) {
     const upstream = await fetch('https://api.anthropic.com/v1/messages', {
@@ -157,6 +165,7 @@ async function callClaude(instructions, input, useWebSearch = true, timeoutMs = 
       headers: {
         'x-api-key': process.env.ANTHROPIC_API_KEY,
         'anthropic-version': '2023-06-01',
+        ...(useMobileIndexMcp ? { 'anthropic-beta': 'mcp-client-2025-11-20' } : {}),
         'Content-Type': 'application/json'
       },
       signal: AbortSignal.timeout(timeoutMs),
@@ -165,7 +174,8 @@ async function callClaude(instructions, input, useWebSearch = true, timeoutMs = 
         max_tokens: 8000,
         system: instructions,
         messages,
-        ...(useWebSearch ? { tools: [{ type: 'web_search_20250305', name: 'web_search' }] } : {})
+        ...(enabledTools.length ? { tools: enabledTools } : {}),
+        ...(useMobileIndexMcp ? { mcp_servers: [{ type:'url', url:mobileIndexMcpUrl, name:'mobile-index', authorization_token:mobileIndexMcpToken }] } : {})
       })
     });
 
@@ -222,11 +232,12 @@ createServer(async (req, res) => {
   if (req.method === 'POST' && pathname === '/api/report') {
     if (!process.env.ANTHROPIC_API_KEY) return send(res, 500, { error: 'ANTHROPIC_API_KEY is not set.' });
 
-    let instructions, input, useWebSearch = true, timeoutMs = 360000;
+    let instructions, input, useWebSearch = true, timeoutMs = 360000, useMobileIndex = false;
     try {
-      ({ instructions, input, useWebSearch = true, timeoutMs = 360000 } = await readJsonBody(req));
+      ({ instructions, input, useWebSearch = true, timeoutMs = 360000, useMobileIndex = false } = await readJsonBody(req));
       if (typeof instructions !== 'string' || typeof input !== 'string') throw new Error('Invalid request.');
       if (typeof useWebSearch !== 'boolean') throw new Error('Invalid useWebSearch value.');
+      if (typeof useMobileIndex !== 'boolean') throw new Error('Invalid useMobileIndex value.');
       if (!Number.isInteger(timeoutMs) || timeoutMs < 30000 || timeoutMs > 360000) throw new Error('Invalid timeoutMs value.');
     } catch (error) {
       return send(res, 400, { error: error.message || 'Request failed.' });
@@ -242,7 +253,7 @@ createServer(async (req, res) => {
     }, 15000);
 
     try {
-      const text = stripCitationTags(await callClaude(instructions, input, useWebSearch, timeoutMs));
+      const text = stripCitationTags(await callClaude(instructions, input, useWebSearch, timeoutMs, useMobileIndex));
       clearInterval(heartbeat);
       if (!text || !text.trim()) { res.end(JSON.stringify({ error: 'Claude returned no text.' })); return; }
       res.end(JSON.stringify({ text }));
